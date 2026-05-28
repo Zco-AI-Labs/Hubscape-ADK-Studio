@@ -7,6 +7,12 @@ import webbrowser
 import subprocess
 from typing import List, Dict, Any, Optional
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import HTMLResponse, FileResponse
@@ -47,12 +53,21 @@ app.add_middleware(
 # App State for global tracking
 app.state.mock_user = {
     "user_id": "dev-user-123",
-    "name": "Dev Commander",
+    "name": "Dev User",
     "email": "dev@hubscape.com",
     "phone_number": "+15550199",
     "roles": ["member", "Hub Admin"],
     "hub_id": "dev-hub-abc",
     "org_id": "dev-org-xyz"
+}
+app.state.live_user = {
+    "user_id": "",
+    "name": "Dev User",
+    "email": "",
+    "phone_number": "",
+    "roles": ["member", "Hub Admin"],
+    "hub_id": "",
+    "org_id": ""
 }
 app.state.last_widget_payload = None
 
@@ -60,7 +75,8 @@ app.state.last_widget_payload = None
 app.state.settings = {
     "dev_gateway": os.getenv("HUBSCAPE_DEV_GATEWAY") == "true",
     "dev_pat": os.getenv("HUBSCAPE_DEV_PAT", ""),
-    "dev_gateway_url": os.getenv("HUBSCAPE_DEV_GATEWAY_URL", "https://hubscape-b9558.web.app")
+    "dev_gateway_url": os.getenv("HUBSCAPE_DEV_GATEWAY_URL", "https://hubscape-b9558.web.app"),
+    "dev_gateway_connected": False
 }
 
 # Globals for the loaded agent
@@ -110,6 +126,36 @@ def setup_agent():
         if agent_api and hasattr(agent_api, "router"):
             app.include_router(agent_api.router, prefix=f"/api/plugins/{agent_id}")
             logger.info(f"🔌 Mounted custom API router at: /api/plugins/{agent_id}/")
+
+    # Verify token at startup if live mode is active
+    if app.state.settings["dev_gateway"] and app.state.settings["dev_pat"]:
+        import requests
+        url = f"{app.state.settings['dev_gateway_url'].rstrip('/')}/api/dev-gateway/db/verify-token"
+        headers = {
+            "Authorization": f"Bearer {app.state.settings['dev_pat']}"
+        }
+        try:
+            logger.info(f"📡 Verifying developer token at startup: {url}...")
+            response = requests.post(url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                profile = data.get("profile", {})
+                app.state.live_user.update({
+                    "user_id": profile.get("user_id", ""),
+                    "name": profile.get("developer_name", "Dev User"),
+                    "email": profile.get("email", ""),
+                    "phone_number": profile.get("phone_number", ""),
+                    "hub_id": profile.get("hub_id", ""),
+                    "org_id": profile.get("org_id", "")
+                })
+                app.state.settings["dev_gateway_connected"] = True
+                logger.info(f"✅ Startup token verified successfully! Synced live profile: {profile}")
+            else:
+                logger.error(f"❌ Startup token verification failed: {response.status_code} - {response.text}")
+                app.state.settings["dev_gateway_connected"] = False
+        except Exception as e:
+            logger.warning(f"⚠️ Startup token verification failed: {e}")
+            app.state.settings["dev_gateway_connected"] = False
 
 # Request Models
 class ChatMessage(BaseModel):
@@ -430,12 +476,25 @@ async def trigger_tool(payload: TriggerToolRequest, context: HubscapeContext = D
 # Update User Info in Sandbox
 @app.post("/api/sandbox/user")
 async def update_user(req_body: dict):
+    if app.state.settings.get("dev_gateway", False):
+        raise HTTPException(status_code=400, detail="Profile changes are disabled while in Live Transceiver mode.")
     app.state.mock_user.update(req_body)
     return {"status": "success", "user": app.state.mock_user}
 
 @app.get("/api/sandbox/user")
 async def get_user():
+    if app.state.settings.get("dev_gateway", False):
+        return app.state.live_user
     return app.state.mock_user
+
+@app.get("/api/sandbox/user/profiles")
+async def get_user_profiles():
+    return {
+        "active_mode": "live" if app.state.settings.get("dev_gateway", False) else "sandbox",
+        "mock_user": app.state.mock_user,
+        "live_user": app.state.live_user
+    }
+
 
 # Config Schema
 class ConfigUpdate(BaseModel):
@@ -582,22 +641,29 @@ async def update_settings(req_body: dict):
                 data = response.json()
                 profile = data.get("profile", {})
                 
-                # Update mock user in app state
-                app.state.mock_user.update({
-                    "user_id": profile.get("user_id"),
-                    "name": profile.get("developer_name", "Developer"),
-                    "hub_id": profile.get("hub_id"),
-                    "org_id": profile.get("org_id")
+                # Update live user in app state
+                app.state.live_user.update({
+                    "user_id": profile.get("user_id", ""),
+                    "name": profile.get("developer_name", "Dev User"),
+                    "email": profile.get("email", ""),
+                    "phone_number": profile.get("phone_number", ""),
+                    "hub_id": profile.get("hub_id", ""),
+                    "org_id": profile.get("org_id", "")
                 })
+                app.state.settings["dev_gateway_connected"] = True
                 logger.info(f"✅ Token verified successfully! Synced developer profile: {profile}")
             else:
+                app.state.settings["dev_gateway_connected"] = False
                 logger.error(f"❌ Token verification failed: {response.status_code} - {response.text}")
                 raise HTTPException(status_code=response.status_code, detail=f"Token verification failed: {response.text}")
         except Exception as e:
+            app.state.settings["dev_gateway_connected"] = False
             logger.error(f"❌ Failed to connect to Dev Gateway: {e}")
             if isinstance(e, HTTPException):
                 raise e
             raise HTTPException(status_code=500, detail=f"Failed to connect to Dev Gateway: {str(e)}")
+    else:
+        app.state.settings["dev_gateway_connected"] = False
 
     # Update state settings
     app.state.settings.update({

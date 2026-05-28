@@ -112,6 +112,9 @@
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .summary-tag:hover {
@@ -159,6 +162,22 @@
             background: var(--primary);
             border-radius: 50%;
             box-shadow: 0 0 8px var(--primary);
+            flex-shrink: 0;
+        }
+
+        .status-dot.green {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .status-dot.red {
+            background: #ef4444;
+            box-shadow: 0 0 8px #ef4444;
+        }
+
+        .status-dot.gray {
+            background: #6b7280;
+            box-shadow: none;
         }
 
         /* Workspace Layout */
@@ -545,12 +564,158 @@
             padding: 8px 12px;
             border-radius: 6px;
             color: white;
-            margin-bottom: 8px;
             outline: none;
             font-size: 13px;
         }
         .lego-input:focus {
             border-color: var(--primary);
+        }
+
+        .lego-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .lego-field-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .lego-select {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: white;
+            outline: none;
+            font-size: 13px;
+            appearance: none;
+            cursor: pointer;
+        }
+        .lego-select:focus {
+            border-color: var(--primary);
+        }
+
+        /* Calendar grid styling */
+        .lego-calendar {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+        .lego-calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+        .lego-calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        .lego-calendar-day-header {
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: var(--text-muted);
+            padding: 4px 0;
+            text-transform: uppercase;
+        }
+        .lego-calendar-cell {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 4px;
+            min-height: 48px;
+            padding: 4px;
+            display: flex;
+            flex-direction: column;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .lego-calendar-cell.current-day {
+            border-color: var(--primary);
+            background: rgba(var(--primary-rgb), 0.05);
+        }
+        .lego-calendar-cell-num {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .lego-calendar-event {
+            font-size: 9px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: white;
+            font-weight: 500;
+        }
+        .lego-calendar-event.event-blue {
+            background: rgba(59, 130, 246, 0.8);
+            border-left: 2px solid #2563eb;
+        }
+        .lego-calendar-event.event-green {
+            background: rgba(16, 185, 129, 0.8);
+            border-left: 2px solid #059669;
+        }
+        .lego-calendar-event.event-red {
+            background: rgba(239, 68, 68, 0.8);
+            border-left: 2px solid #dc2626;
+        }
+        .lego-calendar-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .lego-calendar-list-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .lego-calendar-list-item-title {
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-main);
+        }
+        .lego-calendar-list-item-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 8px;
+        }
+        .lego-calendar-pill {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .lego-calendar-pill.pill-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+        .lego-calendar-pill.pill-green { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        .lego-calendar-pill.pill-red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+        .lego-iframe {
+            width: 100%;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #000;
         }
 
         /* Console Log Footer */
@@ -816,11 +981,11 @@
             <div class="session-summary">
                 Scope: <span class="summary-tag" id="scope-summary-tag" onclick="openScopeModal()" title="Click to edit Scope">Hub Scope</span>
                 Role: <span class="summary-tag" id="role-summary-tag" onclick="openRoleModal()" title="Click to edit Role">Hub Admin</span>
-                DB: <span class="summary-tag" id="db-summary-tag" onclick="openDbModal()" title="Click to toggle DB Connection Mode">Sandbox (Local)</span>
+                DB: <span class="summary-tag" id="db-summary-tag" onclick="openDbModal()" title="Click to toggle DB Connection Mode"><span class="status-dot green" id="db-status-dot"></span><span id="db-status-text">Sandbox (Local)</span></span>
             </div>
             <div class="profile-badge" onclick="openProfileModal()">
-                <div class="status-dot"></div>
-                <div id="username-badge">Dev Commander</div>
+                <div class="status-dot green"></div>
+                <div id="username-badge">Dev User</div>
             </div>
         </div>
     </header>
@@ -918,38 +1083,84 @@
         <div class="modal-content">
             <div class="modal-header">Simulated User Profile</div>
             
-            <div id="profile-sync-badge" style="display: none; padding: 10px 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-md); color: var(--primary); font-size: 12px; font-weight: 500; align-items: center; gap: 8px; margin-bottom: 16px;">
-                <span class="status-dot"></span> Locked (Linked to PAT)
+            <!-- Modal Tabs -->
+            <div class="modal-tabs" style="display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 16px; gap: 16px;">
+                <button class="modal-tab-btn active" id="profile-tab-sandbox" onclick="switchProfileTab('sandbox')" style="background: none; border: none; padding: 8px 0; color: var(--text-main); font-weight: 600; cursor: pointer; border-bottom: 2px solid var(--primary); font-size: 13px; transition: all 0.2s ease;">Sandbox Profile</button>
+                <button class="modal-tab-btn" id="profile-tab-live" onclick="switchProfileTab('live')" style="background: none; border: none; padding: 8px 0; color: var(--text-muted); font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; font-size: 13px; transition: all 0.2s ease;">Live Profile</button>
             </div>
 
-            <div class="form-group">
-                <label for="input-uuid">User UUID (uid) <span style="color: var(--color-info); font-size: 10px; font-weight: bold; margin-left: 4px;">[Primary Key]</span></label>
-                <input type="text" class="lego-input" id="input-uuid" value="dev-user-123">
+            <!-- Sandbox Tab Content -->
+            <div id="profile-sandbox-content">
+                <div id="profile-sandbox-warning" style="display: none; padding: 8px 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-md); color: #ef4444; font-size: 11px; margin-bottom: 12px;">
+                    ⚠️ Sandbox profile fields are locked while connected to the Live Transceiver.
+                </div>
+
+                <div class="form-group">
+                    <label for="input-uuid">User UUID (uid) <span style="color: var(--color-info); font-size: 10px; font-weight: bold; margin-left: 4px;">[Primary Key]</span></label>
+                    <input type="text" class="lego-input" id="input-uuid" value="dev-user-123">
+                </div>
+
+                <div class="form-group">
+                    <label for="input-phone">Phone Number <span style="color: var(--color-info); font-size: 10px; font-weight: bold; margin-left: 4px;">[Primary Key]</span></label>
+                    <input type="text" class="lego-input" id="input-phone" value="+15550199">
+                </div>
+
+                <div class="form-group">
+                    <label for="input-username">Display Name</label>
+                    <input type="text" class="lego-input" id="input-username" value="Dev User">
+                </div>
+                
+                <div class="form-group">
+                    <label for="input-email">Email Address</label>
+                    <input type="text" class="lego-input" id="input-email" value="dev@hubscape.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="input-org-id">Org ID</label>
+                    <input type="text" class="lego-input" id="input-org-id" value="dev-org-xyz">
+                </div>
+
+                <div class="form-group">
+                    <label for="input-hub-id">Hub ID</label>
+                    <input type="text" class="lego-input" id="input-hub-id" value="dev-hub-abc">
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="input-phone">Phone Number <span style="color: var(--color-info); font-size: 10px; font-weight: bold; margin-left: 4px;">[Primary Key]</span></label>
-                <input type="text" class="lego-input" id="input-phone" value="+15550199">
-            </div>
+            <!-- Live Tab Content -->
+            <div id="profile-live-content" style="display: none;">
+                <div id="profile-live-status-banner" style="padding: 8px 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-muted); font-size: 11px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <span class="status-dot gray" id="profile-live-status-dot"></span> <span id="profile-live-status-text">Checking live connection status...</span>
+                </div>
 
-            <div class="form-group">
-                <label for="input-username">Display Name</label>
-                <input type="text" class="lego-input" id="input-username" value="Dev Commander">
-            </div>
-            
-            <div class="form-group">
-                <label for="input-email">Email Address</label>
-                <input type="text" class="lego-input" id="input-email" value="dev@hubscape.com">
-            </div>
+                <div class="form-group">
+                    <label for="live-uuid">User UUID (uid)</label>
+                    <input type="text" class="lego-input" id="live-uuid" value="" disabled>
+                </div>
 
-            <div class="form-group">
-                <label for="input-org-id">Org ID</label>
-                <input type="text" class="lego-input" id="input-org-id" value="dev-org-xyz">
-            </div>
+                <div class="form-group">
+                    <label for="live-phone">Phone Number</label>
+                    <input type="text" class="lego-input" id="live-phone" value="" disabled>
+                </div>
 
-            <div class="form-group">
-                <label for="input-hub-id">Hub ID</label>
-                <input type="text" class="lego-input" id="input-hub-id" value="dev-hub-abc">
+                <div class="form-group">
+                    <label for="live-username">Display Name</label>
+                    <input type="text" class="lego-input" id="live-username" value="" disabled>
+                </div>
+                
+                <div class="form-group">
+                    <label for="live-email">Email Address</label>
+                    <input type="text" class="lego-input" id="live-email" value="" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label for="live-org-id">Org ID</label>
+                    <input type="text" class="lego-input" id="live-org-id" value="" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label for="live-hub-id">Hub ID</label>
+                    <input type="text" class="lego-input" id="live-hub-id" value="" disabled>
+                </div>
             </div>
 
             <div class="modal-footer">
@@ -1029,14 +1240,20 @@
         <div class="modal-content">
             <div class="modal-header">Database Connection Mode</div>
             
+            <!-- Connection Status Banner -->
+            <div id="db-status-banner" style="padding: 10px 14px; border-radius: var(--radius-md); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.03); color: var(--text-muted); transition: all 0.2s ease;">
+                <span class="status-dot gray" id="db-modal-status-dot"></span>
+                <span id="db-modal-status-text">Checking status...</span>
+            </div>
+
             <div class="form-group">
                 <label>Select connection mode for Firestore operations:</label>
                 <div class="choice-group" style="grid-template-columns: 1fr; gap: 10px; margin-top: 10px;">
-                    <div class="choice-card selected" id="db-offline-card" onclick="selectDbMode(false)">
+                    <div class="choice-card selected" id="db-offline-card" onclick="selectDbModeVisual(false)">
                         <div class="choice-indicator"></div>
-                        <span>Offline Sandbox (local_db.json)</span>
+                        <span>Local Sandbox (local_db.json)</span>
                     </div>
-                    <div class="choice-card" id="db-live-card" onclick="selectDbMode(true)">
+                    <div class="choice-card" id="db-live-card" onclick="selectDbModeVisual(true)">
                         <div class="choice-indicator"></div>
                         <span>Live Gateway Transceiver (Firestore dev/staging)</span>
                     </div>
@@ -1063,6 +1280,46 @@
             <div class="modal-footer">
                 <button class="btn secondary" onclick="closeDbModal()">Cancel</button>
                 <button class="btn primary" onclick="saveDbSettings()">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Onboarding Wizard Modal Overlay -->
+    <div class="modal" id="setup-wizard-modal" style="z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(8px); background: rgba(8, 12, 20, 0.85);">
+        <div class="modal-content" style="max-width: 500px; width: 90%; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8); background: rgba(13, 18, 30, 0.95); animation: modalSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+            <div class="modal-header" style="font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">
+                🚀 Welcome to the Holodeck Sandbox
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;">
+                Configure your agent credentials to start prototyping locally or connect to the live staging Firestore environment.
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label for="wizard-agent-id" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 6px; color: var(--text-muted);">Agent UUID</label>
+                <input type="text" class="lego-input" id="wizard-agent-id" placeholder="Enter registered Agent UUID (e.g. 123e4567-...)" style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+                <label for="wizard-dev-pat" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 6px; color: var(--text-muted);">Developer Personal Access Token (PAT)</label>
+                <input type="text" class="lego-input" id="wizard-dev-pat" placeholder="hs_pat_..." style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label for="wizard-gateway-url" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 6px; color: var(--text-muted);">Gateway Transceiver URL</label>
+                <input type="text" class="lego-input" id="wizard-gateway-url" value="https://hubscape-b9558.web.app" style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            </div>
+
+            <!-- Error message container -->
+            <div id="wizard-error-msg" style="display: none; padding: 10px 14px; border-radius: var(--radius-md); font-size: 12px; font-weight: 500; border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.08); color: #ef4444; margin-bottom: 16px;">
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <button class="btn secondary" onclick="skipWizard()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; font-weight: 500; text-decoration: underline;">
+                    Skip to Local Sandbox
+                </button>
+                <button class="btn primary" id="btn-wizard-connect" onclick="connectStagingFromWizard()" style="padding: 10px 20px; font-weight: 600;">
+                    Connect to Staging
+                </button>
             </div>
         </div>
     </div>
@@ -1142,41 +1399,137 @@
             }
         }
 
+        let activeProfileTab = "sandbox";
+
+        function switchProfileTab(tab) {
+            activeProfileTab = tab;
+            
+            const sandboxTab = document.getElementById("profile-tab-sandbox");
+            const liveTab = document.getElementById("profile-tab-live");
+            const sandboxContent = document.getElementById("profile-sandbox-content");
+            const liveContent = document.getElementById("profile-live-content");
+            const saveBtn = document.getElementById("profile-save-btn");
+            
+            if (tab === "sandbox") {
+                sandboxTab.classList.add("active");
+                sandboxTab.style.color = "var(--text-main)";
+                sandboxTab.style.borderBottom = "2px solid var(--primary)";
+                sandboxTab.style.fontWeight = "600";
+                
+                liveTab.classList.remove("active");
+                liveTab.style.color = "var(--text-muted)";
+                liveTab.style.borderBottom = "2px solid transparent";
+                liveTab.style.fontWeight = "500";
+                
+                sandboxContent.style.display = "block";
+                liveContent.style.display = "none";
+                
+                // Hide save button if live mode is active (read-only)
+                const isLocked = selectedDbGatewayMode;
+                saveBtn.style.display = isLocked ? "none" : "block";
+            } else {
+                liveTab.classList.add("active");
+                liveTab.style.color = "var(--text-main)";
+                liveTab.style.borderBottom = "2px solid var(--primary)";
+                liveTab.style.fontWeight = "600";
+                
+                sandboxTab.classList.remove("active");
+                sandboxTab.style.color = "var(--text-muted)";
+                sandboxTab.style.borderBottom = "2px solid transparent";
+                sandboxTab.style.fontWeight = "500";
+                
+                sandboxContent.style.display = "none";
+                liveContent.style.display = "block";
+                
+                // Live tab is always read-only, hide Save button
+                saveBtn.style.display = "none";
+            }
+        }
+
         async function loadProfile() {
             try {
-                const res = await fetch("/api/sandbox/user");
-                const user = await res.json();
-                
-                document.getElementById("input-username").value = user.name;
-                document.getElementById("input-uuid").value = user.user_id || "dev-user-123";
-                document.getElementById("input-email").value = user.email;
-                document.getElementById("input-phone").value = user.phone_number || "+15550199";
-                document.getElementById("input-org-id").value = user.org_id || "";
-                document.getElementById("input-hub-id").value = user.hub_id || "";
-                document.getElementById("username-badge").innerText = user.name;
-                
-                // Toggle locked badge and disable profile input elements when live mode is active
-                const isLocked = selectedDbGatewayMode;
-                const badge = document.getElementById("profile-sync-badge");
-                if (badge) {
-                    badge.style.display = isLocked ? "flex" : "none";
+                const res = await fetch("/api/sandbox/user/profiles");
+                if (!res.ok) {
+                    // Fallback to legacy flat endpoint if route is unavailable
+                    const legacyRes = await fetch("/api/sandbox/user");
+                    const user = await legacyRes.json();
+                    
+                    document.getElementById("input-username").value = user.name;
+                    document.getElementById("input-uuid").value = user.user_id || "dev-user-123";
+                    document.getElementById("input-email").value = user.email;
+                    document.getElementById("input-phone").value = user.phone_number || "+15550199";
+                    document.getElementById("input-org-id").value = user.org_id || "";
+                    document.getElementById("input-hub-id").value = user.hub_id || "";
+                    document.getElementById("username-badge").innerText = user.name;
+                    
+                    const isLocked = selectedDbGatewayMode;
+                    const inputs = ["input-username", "input-uuid", "input-email", "input-phone", "input-org-id", "input-hub-id"];
+                    inputs.forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.disabled = isLocked;
+                    });
+                    
+                    const warnEl = document.getElementById("profile-sandbox-warning");
+                    if (warnEl) warnEl.style.display = isLocked ? "block" : "none";
+                    
+                    updateSessionHeader(user);
+                    return;
                 }
                 
+                const data = await res.json();
+                const activeMode = data.active_mode;
+                const mockUser = data.mock_user;
+                const liveUser = data.live_user;
+                
+                // Populate sandbox inputs
+                document.getElementById("input-username").value = mockUser.name || "";
+                document.getElementById("input-uuid").value = mockUser.user_id || "dev-user-123";
+                document.getElementById("input-email").value = mockUser.email || "";
+                document.getElementById("input-phone").value = mockUser.phone_number || "+15550199";
+                document.getElementById("input-org-id").value = mockUser.org_id || "";
+                document.getElementById("input-hub-id").value = mockUser.hub_id || "";
+                
+                // Populate live inputs
+                document.getElementById("live-username").value = liveUser.name || "";
+                document.getElementById("live-uuid").value = liveUser.user_id || "";
+                document.getElementById("live-email").value = liveUser.email || "";
+                document.getElementById("live-phone").value = liveUser.phone_number || "";
+                document.getElementById("live-org-id").value = liveUser.org_id || "";
+                document.getElementById("live-hub-id").value = liveUser.hub_id || "";
+                
+                // Update username badge
+                const currentUser = activeMode === "live" ? liveUser : mockUser;
+                document.getElementById("username-badge").innerText = currentUser.name || "Dev User";
+                
+                // Lock sandbox inputs if active mode is live
+                const isLocked = (activeMode === "live");
                 const inputs = ["input-username", "input-uuid", "input-email", "input-phone", "input-org-id", "input-hub-id"];
                 inputs.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.disabled = isLocked;
                 });
                 
-                const saveBtn = document.getElementById("profile-save-btn");
-                if (saveBtn) {
-                    saveBtn.disabled = isLocked;
-                    saveBtn.style.opacity = isLocked ? "0.5" : "1";
-                    saveBtn.style.cursor = isLocked ? "not-allowed" : "pointer";
+                const warnEl = document.getElementById("profile-sandbox-warning");
+                if (warnEl) warnEl.style.display = isLocked ? "block" : "none";
+                
+                // Live tab status banner
+                const liveDot = document.getElementById("profile-live-status-dot");
+                const liveText = document.getElementById("profile-live-status-text");
+                if (selectedDbGatewayMode) {
+                    if (liveUser && liveUser.user_id) {
+                        liveDot.className = "status-dot green";
+                        liveText.innerText = "Transceiver Synced successfully";
+                    } else {
+                        liveDot.className = "status-dot red";
+                        liveText.innerText = "Transceiver Connection error: profile missing";
+                    }
+                } else {
+                    liveDot.className = "status-dot gray";
+                    liveText.innerText = "Transceiver Offline (Local Sandbox active)";
                 }
                 
-                // Set correct role cards in visual selectors
-                const roles = user.roles || [];
+                // Set correct role cards in visual selectors based on active user
+                const roles = currentUser.roles || [];
                 if (roles.includes("Hub Admin")) {
                     selectRole("Hub Admin");
                 } else if (roles.includes("member") && roles.length === 1) {
@@ -1188,16 +1541,16 @@
                     document.getElementById("input-custom-role").value = roles.join(", ");
                 }
 
-                // Set correct scope cards in visual selectors
-                if (user.hub_id && user.org_id) {
+                // Set correct scope cards in visual selectors based on active user
+                if (currentUser.hub_id && currentUser.org_id) {
                     selectScope("hub");
-                } else if (user.org_id && !user.hub_id) {
+                } else if (currentUser.org_id && !currentUser.hub_id) {
                     selectScope("org");
                 } else {
                     selectScope("personal");
                 }
-
-                updateSessionHeader(user);
+                
+                updateSessionHeader(currentUser);
             } catch (e) {
                 log("Failed to load user session profile from backend server", "error");
             }
@@ -1218,7 +1571,14 @@
         }
 
         function openProfileModal() {
-            document.getElementById("profile-modal").classList.add("open");
+            loadProfile().then(() => {
+                if (selectedDbGatewayMode) {
+                    switchProfileTab("live");
+                } else {
+                    switchProfileTab("sandbox");
+                }
+                document.getElementById("profile-modal").classList.add("open");
+            });
         }
 
         function closeProfileModal() {
@@ -1334,6 +1694,8 @@
         }
 
         let selectedDbGatewayMode = false;
+        let tempDbGatewayMode = false;
+        let devGatewayConnected = false;
 
         async function loadSettings() {
             try {
@@ -1341,35 +1703,138 @@
                 const settings = await res.json();
                 
                 selectedDbGatewayMode = settings.dev_gateway;
+                devGatewayConnected = settings.dev_gateway_connected || false;
                 document.getElementById("input-dev-pat").value = settings.dev_pat || "";
                 document.getElementById("input-gateway-url").value = settings.dev_gateway_url || "https://hubscape-b9558.web.app";
                 
-                selectDbMode(selectedDbGatewayMode);
+                tempDbGatewayMode = selectedDbGatewayMode;
+                selectDbModeVisual(tempDbGatewayMode);
                 updateDbHeader(settings);
 
                 // Load config.json Agent UUID
                 const configRes = await fetch("/api/sandbox/config");
                 if (configRes.ok) {
                     const config = await configRes.json();
-                    document.getElementById("input-agent-id").value = config.id || "";
+                    const configId = config.id || "";
+                    document.getElementById("input-agent-id").value = configId;
+
+                    // Trigger Setup Wizard onboarding check
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    const devPat = settings.dev_pat || "";
+                    const isUnconfigured = !uuidRegex.test(configId) || !devPat;
+                    const wasDismissed = localStorage.getItem("hubscape_wizard_dismissed") === "true";
+
+                    if (isUnconfigured && !wasDismissed) {
+                        // Populate inputs in wizard with whatever exists on load
+                        document.getElementById("wizard-agent-id").value = (configId === "todo_agent" || configId === "YOUR_ASSIGNED_AGENT_UUID") ? "" : configId;
+                        document.getElementById("wizard-dev-pat").value = devPat;
+                        document.getElementById("wizard-gateway-url").value = settings.dev_gateway_url || "https://hubscape-b9558.web.app";
+                        document.getElementById("wizard-error-msg").style.display = "none";
+                        document.getElementById("setup-wizard-modal").classList.add("open");
+                    }
                 }
             } catch (e) {
                 log("Failed to load settings or configuration from server", "error");
             }
         }
 
+        function skipWizard() {
+            localStorage.setItem("hubscape_wizard_dismissed", "true");
+            document.getElementById("setup-wizard-modal").classList.remove("open");
+            log("Operating in offline Sandbox Mode. You can link to Live Transceiver anytime via DB Settings.", "info");
+        }
+
+        async function connectStagingFromWizard() {
+            const agentId = document.getElementById("wizard-agent-id").value.trim();
+            const dev_pat = document.getElementById("wizard-dev-pat").value.trim();
+            const dev_gateway_url = document.getElementById("wizard-gateway-url").value.trim();
+            const errorMsg = document.getElementById("wizard-error-msg");
+            const btnConnect = document.getElementById("btn-wizard-connect");
+
+            errorMsg.style.display = "none";
+
+            if (!dev_pat) {
+                errorMsg.innerText = "Please enter a Developer Personal Access Token (PAT).";
+                errorMsg.style.display = "block";
+                return;
+            }
+
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(agentId)) {
+                errorMsg.innerText = "Please enter a valid Agent UUID.";
+                errorMsg.style.display = "block";
+                return;
+            }
+
+            try {
+                btnConnect.disabled = true;
+                btnConnect.innerText = "Connecting...";
+
+                // 1. Update config.json with the new Agent ID
+                const configRes = await fetch("/api/sandbox/config", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: agentId })
+                });
+
+                if (!configRes.ok) {
+                    const errData = await configRes.json();
+                    throw new Error(errData.detail || "Failed to update agent config");
+                }
+
+                // 2. Save Settings to enable Live Transceiver
+                const res = await fetch("/api/sandbox/settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dev_gateway: true, dev_pat, dev_gateway_url })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || "Failed to connect to Live Transceiver");
+                }
+
+                log(`Successfully connected to Staging with Agent ID: '${agentId}'`, "info");
+                document.getElementById("setup-wizard-modal").classList.remove("open");
+                
+                await loadSettings();
+                await loadProfile();
+            } catch (e) {
+                errorMsg.innerText = e.message || e.toString();
+                errorMsg.style.display = "block";
+            } finally {
+                btnConnect.disabled = false;
+                btnConnect.innerText = "Connect to Staging";
+            }
+        }
+
         function updateDbHeader(settings) {
+            const dbDot = document.getElementById("db-status-dot");
+            const dbText = document.getElementById("db-status-text");
             const dbTag = document.getElementById("db-summary-tag");
+            const profileDot = document.querySelector(".profile-badge .status-dot");
+
             if (settings.dev_gateway) {
-                dbTag.innerText = "Transceiver (Live)";
                 dbTag.className = "summary-tag active-gateway";
+                dbText.innerText = "Transceiver (Live)";
+                if (settings.dev_gateway_connected) {
+                    dbDot.className = "status-dot green";
+                    if (profileDot) profileDot.className = "status-dot green";
+                } else {
+                    dbDot.className = "status-dot red";
+                    if (profileDot) profileDot.className = "status-dot red";
+                }
             } else {
-                dbTag.innerText = "Sandbox (Local)";
                 dbTag.className = "summary-tag";
+                dbText.innerText = "Sandbox (Local)";
+                dbDot.className = "status-dot green";
+                if (profileDot) profileDot.className = "status-dot green";
             }
         }
 
         function openDbModal() {
+            tempDbGatewayMode = selectedDbGatewayMode;
+            selectDbModeVisual(tempDbGatewayMode);
             document.getElementById("db-modal").classList.add("open");
         }
 
@@ -1377,8 +1842,8 @@
             document.getElementById("db-modal").classList.remove("open");
         }
 
-        function selectDbMode(mode) {
-            selectedDbGatewayMode = mode;
+        function selectDbModeVisual(mode) {
+            tempDbGatewayMode = mode;
             document.querySelectorAll(".choice-card[id^='db-']").forEach(card => card.classList.remove("selected"));
             
             const credsArea = document.getElementById("db-credentials-area");
@@ -1389,10 +1854,37 @@
                 document.getElementById("db-offline-card").classList.add("selected");
                 credsArea.style.display = "none";
             }
+
+            // Update modal status banner
+            const banner = document.getElementById("db-status-banner");
+            const dot = document.getElementById("db-modal-status-dot");
+            const text = document.getElementById("db-modal-status-text");
+
+            if (mode) {
+                if (devGatewayConnected) {
+                    banner.style.background = "rgba(16, 185, 129, 0.08)";
+                    banner.style.borderColor = "rgba(16, 185, 129, 0.2)";
+                    banner.style.color = "#10b981";
+                    dot.className = "status-dot green";
+                    text.innerText = "Transceiver Connected: Synced to dev/staging";
+                } else {
+                    banner.style.background = "rgba(239, 68, 68, 0.08)";
+                    banner.style.borderColor = "rgba(239, 68, 68, 0.2)";
+                    banner.style.color = "#ef4444";
+                    dot.className = "status-dot red";
+                    text.innerText = "Transceiver Disconnected: Verify token/credentials";
+                }
+            } else {
+                banner.style.background = "rgba(16, 185, 129, 0.08)";
+                banner.style.borderColor = "rgba(16, 185, 129, 0.2)";
+                banner.style.color = "#10b981";
+                dot.className = "status-dot green";
+                text.innerText = "Local Sandbox Active (local_db.json)";
+            }
         }
 
         async function saveDbSettings() {
-            const dev_gateway = selectedDbGatewayMode;
+            const dev_gateway = tempDbGatewayMode;
             const dev_pat = document.getElementById("input-dev-pat").value.trim();
             const dev_gateway_url = document.getElementById("input-gateway-url").value.trim();
             const agentId = document.getElementById("input-agent-id").value.trim();
@@ -1433,7 +1925,7 @@
                 });
                 
                 if (res.ok) {
-                    const text = dev_gateway ? "Transceiver Mode (Live Dev Firestore)" : "Offline Sandbox Mode (local_db.json)";
+                    const text = dev_gateway ? "Transceiver Mode (Live Dev Firestore)" : "Local Sandbox Mode (local_db.json)";
                     log(`Saved connection mode: ${text}`, "info");
                     closeDbModal();
                     await loadSettings();
@@ -1603,13 +2095,28 @@
                     el.onclick = async () => {
                         const url = node.props?.actionUrl;
                         const payloadData = node.props?.payload || {};
-                        log(`Button Action Clicked -> POST ${url} with ${JSON.stringify(payloadData)}`, "info");
+                        
+                        // Form packaging: Traverse up to find the closest lego container or target canvas, and find all named inputs/selects inside
+                        const formPayload = {};
+                        let parent = el.parentElement;
+                        while (parent && !parent.classList.contains("lego-container") && parent.id !== targetCanvasId) {
+                            parent = parent.parentElement;
+                        }
+                        if (parent) {
+                            const inputs = parent.querySelectorAll("input[name], select[name]");
+                            inputs.forEach(input => {
+                                formPayload[input.name] = input.value;
+                            });
+                        }
+                        
+                        const finalPayload = { ...payloadData, ...formPayload };
+                        log(`Button Action Clicked -> POST ${url} with ${JSON.stringify(finalPayload)}`, "info");
                         
                         try {
                             const res = await fetch(url, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify(payloadData)
+                                body: JSON.stringify(finalPayload)
                             });
                             const responseData = await res.json();
                             if (responseData.status === "success") {
@@ -1630,10 +2137,157 @@
                     break;
                     
                 case "input":
-                    el = document.createElement("input");
-                    el.type = "text";
-                    el.className = "lego-input";
-                    el.placeholder = node.props?.placeholder || '';
+                    const inputWrapper = document.createElement("div");
+                    inputWrapper.className = "lego-field-container";
+                    if (node.props?.label) {
+                        const label = document.createElement("label");
+                        label.className = "lego-label";
+                        label.innerText = node.props.label;
+                        inputWrapper.appendChild(label);
+                    }
+                    const inputEl = document.createElement("input");
+                    inputEl.type = node.props?.inputType || "text";
+                    inputEl.className = `lego-input ${node.props?.className || ''}`;
+                    inputEl.placeholder = node.props?.placeholder || '';
+                    if (node.props?.name) {
+                        inputEl.name = node.props.name;
+                    }
+                    inputWrapper.appendChild(inputEl);
+                    el = inputWrapper;
+                    break;
+
+                case "select":
+                    const selectWrapper = document.createElement("div");
+                    selectWrapper.className = "lego-field-container";
+                    if (node.props?.label) {
+                        const label = document.createElement("label");
+                        label.className = "lego-label";
+                        label.innerText = node.props.label;
+                        selectWrapper.appendChild(label);
+                    }
+                    const selectEl = document.createElement("select");
+                    selectEl.className = `lego-select ${node.props?.className || ''}`;
+                    if (node.props?.name) {
+                        selectEl.name = node.props.name;
+                    }
+                    if (node.props?.options && Array.isArray(node.props.options)) {
+                        node.props.options.forEach(opt => {
+                            const option = document.createElement("option");
+                            option.value = opt.value;
+                            option.innerText = opt.label;
+                            selectEl.appendChild(option);
+                        });
+                    }
+                    selectWrapper.appendChild(selectEl);
+                    el = selectWrapper;
+                    break;
+
+                case "calendar-grid":
+                    el = document.createElement("div");
+                    el.className = `lego-calendar ${node.props?.className || ''}`;
+                    
+                    const calendarHeader = document.createElement("div");
+                    calendarHeader.className = "lego-calendar-header";
+                    
+                    const view = node.props?.view || "month";
+                    const events = node.props?.events || [];
+                    
+                    if (view === "month") {
+                        calendarHeader.innerHTML = `<span>May 2026</span><span style="font-size:11px;color:var(--text-muted);">Month View</span>`;
+                        el.appendChild(calendarHeader);
+                        
+                        const grid = document.createElement("div");
+                        grid.className = "lego-calendar-grid";
+                        
+                        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                        days.forEach(d => {
+                            const dHeader = document.createElement("div");
+                            dHeader.className = "lego-calendar-day-header";
+                            dHeader.innerText = d;
+                            grid.appendChild(dHeader);
+                        });
+                        
+                        const startOffset = 4; // May 1st 2026 is a Friday
+                        for (let i = 0; i < startOffset; i++) {
+                            const emptyCell = document.createElement("div");
+                            emptyCell.style.opacity = "0.2";
+                            grid.appendChild(emptyCell);
+                        }
+                        
+                        for (let day = 1; day <= 31; day++) {
+                            const cell = document.createElement("div");
+                            cell.className = "lego-calendar-cell";
+                            if (day === 28) {
+                                cell.classList.add("current-day");
+                            }
+                            
+                            const dayNum = document.createElement("div");
+                            dayNum.className = "lego-calendar-cell-num";
+                            dayNum.innerText = day;
+                            cell.appendChild(dayNum);
+                            
+                            const dateStr = `2026-05-${day.toString().padStart(2, '0')}`;
+                            const dayEvents = events.filter(ev => ev.date === dateStr);
+                            dayEvents.forEach(ev => {
+                                const evEl = document.createElement("div");
+                                evEl.className = `lego-calendar-event event-${ev.color || 'blue'}`;
+                                evEl.innerText = `${ev.time ? ev.time + ' ' : ''}${ev.title}`;
+                                evEl.title = ev.title;
+                                cell.appendChild(evEl);
+                            });
+                            
+                            grid.appendChild(cell);
+                        }
+                        el.appendChild(grid);
+                    } else {
+                        calendarHeader.innerHTML = `<span>Weekly Events</span><span style="font-size:11px;color:var(--text-muted);">List View</span>`;
+                        el.appendChild(calendarHeader);
+                        
+                        const list = document.createElement("div");
+                        list.className = "lego-calendar-list";
+                        
+                        if (events.length === 0) {
+                            const noEvents = document.createElement("div");
+                            noEvents.style.padding = "16px";
+                            noEvents.style.textAlign = "center";
+                            noEvents.style.color = "var(--text-muted)";
+                            noEvents.innerText = "No events scheduled for this week";
+                            list.appendChild(noEvents);
+                        } else {
+                            events.forEach(ev => {
+                                const item = document.createElement("div");
+                                item.className = "lego-calendar-list-item";
+                                
+                                const info = document.createElement("div");
+                                const title = document.createElement("div");
+                                title.className = "lego-calendar-list-item-title";
+                                title.innerText = ev.title;
+                                info.appendChild(title);
+                                
+                                const meta = document.createElement("div");
+                                meta.className = "lego-calendar-list-item-meta";
+                                meta.innerHTML = `<span>${ev.date}</span>${ev.time ? `<span>• ${ev.time}</span>` : ''}`;
+                                info.appendChild(meta);
+                                
+                                item.appendChild(info);
+                                
+                                const pill = document.createElement("span");
+                                pill.className = `lego-calendar-pill pill-${ev.color || 'blue'}`;
+                                pill.innerText = ev.color ? ev.color.toUpperCase() : "BLUE";
+                                item.appendChild(pill);
+                                
+                                list.appendChild(item);
+                            });
+                        }
+                        el.appendChild(list);
+                    }
+                    break;
+
+                case "iframe":
+                    el = document.createElement("iframe");
+                    el.className = `lego-iframe ${node.props?.className || ''}`;
+                    el.src = node.props?.src || "about:blank";
+                    el.style.height = node.props?.height || "300px";
                     break;
 
                 default:
@@ -1721,6 +2375,47 @@
                     log(`❌ Clipboard copy failed: ${err}`, "error");
                 });
         }
+
+        // --- Bidirectional IFrame Communication (postMessage) ---
+        window.addEventListener('message', async (event) => {
+            if (event.data && event.data.type === 'SUBMIT_FORM') {
+                const { actionUrl, payload } = event.data;
+                log(`IFrame Form Submitted -> POST ${actionUrl} with ${JSON.stringify(payload)}`, "info");
+                try {
+                    const res = await fetch(actionUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                    const responseData = await res.json();
+                    
+                    // Reply back to the source iframe
+                    event.source.postMessage({
+                        type: 'SUBMIT_FORM_RESPONSE',
+                        status: responseData.status,
+                        result: responseData.result,
+                        message: responseData.message,
+                        widgetPayload: responseData.widgetPayload
+                    }, '*');
+
+                    if (responseData.status === "success") {
+                        log(`IFrame Form Success: ${responseData.result?.message || 'Data saved successfully'}`, "info");
+                        if (responseData.widgetPayload) {
+                            renderWidgetInCanvas(responseData.widgetPayload, "widget-canvas");
+                        }
+                    } else {
+                        log(`IFrame Form Error: ${responseData.message}`, "error");
+                    }
+                } catch (e) {
+                    log(`Failed to process iframe form submission: ${e}`, "error");
+                    event.source.postMessage({
+                        type: 'SUBMIT_FORM_RESPONSE',
+                        status: 'error',
+                        message: e.toString()
+                    }, '*');
+                }
+            }
+        });
 
         // Initialize
         window.onload = () => {

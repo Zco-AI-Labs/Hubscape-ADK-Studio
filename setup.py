@@ -29,6 +29,7 @@ setup(
     entry_points={
         "console_scripts": [
             "hubscape-adk=hubscape_adk.run_sandbox:main",
+            "hubscape-adk-local=hubscape_adk.run_sandbox:main",
         ],
     },
 )
