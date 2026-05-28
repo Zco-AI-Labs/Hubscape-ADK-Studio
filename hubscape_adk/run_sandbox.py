@@ -427,15 +427,140 @@ async def update_user(req_body: dict):
 async def get_user():
     return app.state.mock_user
 
+# Config Schema
+class ConfigUpdate(BaseModel):
+    id: str
+
+# Config Endpoints
+@app.get("/api/sandbox/config")
+async def get_config():
+    if not os.path.exists("config.json"):
+        raise HTTPException(status_code=404, detail="config.json not found")
+    try:
+        with open("config.json", "r") as f:
+            return json.load(f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read config.json: {str(e)}")
+
+@app.post("/api/sandbox/config")
+async def update_config(payload: ConfigUpdate):
+    global AGENT_CONFIG
+    if not os.path.exists("config.json"):
+        raise HTTPException(status_code=404, detail="config.json not found")
+    try:
+        with open("config.json", "r") as f:
+            config_data = json.load(f)
+        
+        config_data["id"] = payload.id
+        
+        with open("config.json", "w") as f:
+            json.dump(config_data, f, indent=4)
+        
+        AGENT_CONFIG = config_data
+        logger.info(f"Updated agent configuration ID to: '{payload.id}'")
+        return {"status": "success", "config": AGENT_CONFIG}
+    except Exception as e:
+        logger.error(f"Failed to update config.json: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update config.json: {str(e)}")
+
 # Get Settings in Sandbox
 @app.get("/api/sandbox/settings")
 async def get_settings():
     return app.state.settings
 
+def update_dotenv(key_values: Dict[str, str]):
+    dotenv_path = ".env"
+    lines = []
+    existing_keys = set()
+    
+    if os.path.exists(dotenv_path):
+        try:
+            with open(dotenv_path, "r") as f:
+                lines = f.readlines()
+        except Exception as e:
+            logger.error(f"Error reading .env: {e}")
+            
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            parts = stripped.split("=", 1)
+            k = parts[0].strip()
+            if k in key_values:
+                new_lines.append(f"{k}={key_values[k]}\n")
+                existing_keys.add(k)
+                continue
+        new_lines.append(line)
+        
+    for k, v in key_values.items():
+        if k not in existing_keys:
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines[-1] += "\n"
+            new_lines.append(f"{k}={v}\n")
+            
+    try:
+        with open(dotenv_path, "w") as f:
+            f.writelines(new_lines)
+        logger.info("Successfully updated .env file with settings")
+    except Exception as e:
+        logger.error(f"Failed to write to .env: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to write to .env: {str(e)}")
+
 # Update Settings in Sandbox
 @app.post("/api/sandbox/settings")
 async def update_settings(req_body: dict):
-    app.state.settings.update(req_body)
+    dev_gateway = req_body.get("dev_gateway", False)
+    dev_pat = req_body.get("dev_pat", "")
+    dev_gateway_url = req_body.get("dev_gateway_url", "https://hubscape-b9558.web.app")
+
+    # If live mode is selected, verify the developer token with the platform gateway
+    if dev_gateway:
+        if not dev_pat:
+            raise HTTPException(status_code=400, detail="Personal Access Token is required to enable Live Gateway.")
+        
+        import requests
+        url = f"{dev_gateway_url.rstrip('/')}/api/dev-gateway/db/verify-token"
+        headers = {
+            "Authorization": f"Bearer {dev_pat}"
+        }
+        try:
+            logger.info(f"📡 Verifying developer token at: {url}...")
+            response = requests.post(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                profile = data.get("profile", {})
+                
+                # Update mock user in app state
+                app.state.mock_user.update({
+                    "user_id": profile.get("user_id"),
+                    "name": profile.get("developer_name", "Developer"),
+                    "hub_id": profile.get("hub_id"),
+                    "org_id": profile.get("org_id")
+                })
+                logger.info(f"✅ Token verified successfully! Synced developer profile: {profile}")
+            else:
+                logger.error(f"❌ Token verification failed: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=response.status_code, detail=f"Token verification failed: {response.text}")
+        except Exception as e:
+            logger.error(f"❌ Failed to connect to Dev Gateway: {e}")
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(status_code=500, detail=f"Failed to connect to Dev Gateway: {str(e)}")
+
+    # Update state settings
+    app.state.settings.update({
+        "dev_gateway": dev_gateway,
+        "dev_pat": dev_pat,
+        "dev_gateway_url": dev_gateway_url
+    })
+
+    # Persist back to .env file
+    update_dotenv({
+        "HUBSCAPE_DEV_GATEWAY": "true" if dev_gateway else "false",
+        "HUBSCAPE_DEV_PAT": dev_pat,
+        "HUBSCAPE_DEV_GATEWAY_URL": dev_gateway_url
+    })
+
     return {"status": "success", "settings": app.state.settings}
 
 # Serve Holodeck Static Files

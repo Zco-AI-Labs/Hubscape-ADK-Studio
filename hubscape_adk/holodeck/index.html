@@ -912,6 +912,10 @@
         <div class="modal-content">
             <div class="modal-header">Simulated User Profile</div>
             
+            <div id="profile-sync-badge" style="display: none; padding: 10px 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius-md); color: var(--primary); font-size: 12px; font-weight: 500; align-items: center; gap: 8px; margin-bottom: 16px;">
+                <span class="status-dot"></span> Locked (Linked to PAT)
+            </div>
+
             <div class="form-group">
                 <label for="input-uuid">User UUID (uid) <span style="color: var(--color-info); font-size: 10px; font-weight: bold; margin-left: 4px;">[Primary Key]</span></label>
                 <input type="text" class="lego-input" id="input-uuid" value="dev-user-123">
@@ -932,9 +936,19 @@
                 <input type="text" class="lego-input" id="input-email" value="dev@hubscape.com">
             </div>
 
+            <div class="form-group">
+                <label for="input-org-id">Org ID</label>
+                <input type="text" class="lego-input" id="input-org-id" value="dev-org-xyz">
+            </div>
+
+            <div class="form-group">
+                <label for="input-hub-id">Hub ID</label>
+                <input type="text" class="lego-input" id="input-hub-id" value="dev-hub-abc">
+            </div>
+
             <div class="modal-footer">
                 <button class="btn secondary" onclick="closeProfileModal()">Cancel</button>
-                <button class="btn primary" onclick="saveProfile()">Save Profile</button>
+                <button class="btn primary" id="profile-save-btn" onclick="saveProfile()">Save Profile</button>
             </div>
         </div>
     </div>
@@ -1024,6 +1038,11 @@
             </div>
 
             <div id="db-credentials-area" style="display: none;">
+                <div class="form-group">
+                    <label for="input-agent-id">Agent UUID (Must match config.json)</label>
+                    <input type="text" class="lego-input" id="input-agent-id" placeholder="Enter registered Agent UUID...">
+                </div>
+
                 <div class="form-group">
                     <label for="input-dev-pat">Developer Personal Access Token (PAT)</label>
                     <input type="text" class="lego-input" id="input-dev-pat" placeholder="hs_pat_...">
@@ -1126,7 +1145,29 @@
                 document.getElementById("input-uuid").value = user.user_id || "dev-user-123";
                 document.getElementById("input-email").value = user.email;
                 document.getElementById("input-phone").value = user.phone_number || "+15550199";
+                document.getElementById("input-org-id").value = user.org_id || "";
+                document.getElementById("input-hub-id").value = user.hub_id || "";
                 document.getElementById("username-badge").innerText = user.name;
+                
+                // Toggle locked badge and disable profile input elements when live mode is active
+                const isLocked = selectedDbGatewayMode;
+                const badge = document.getElementById("profile-sync-badge");
+                if (badge) {
+                    badge.style.display = isLocked ? "flex" : "none";
+                }
+                
+                const inputs = ["input-username", "input-uuid", "input-email", "input-phone", "input-org-id", "input-hub-id"];
+                inputs.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.disabled = isLocked;
+                });
+                
+                const saveBtn = document.getElementById("profile-save-btn");
+                if (saveBtn) {
+                    saveBtn.disabled = isLocked;
+                    saveBtn.style.opacity = isLocked ? "0.5" : "1";
+                    saveBtn.style.cursor = isLocked ? "not-allowed" : "pointer";
+                }
                 
                 // Set correct role cards in visual selectors
                 const roles = user.roles || [];
@@ -1179,16 +1220,22 @@
         }
 
         async function saveProfile() {
+            if (selectedDbGatewayMode) {
+                alert("Profile changes are disabled while in Live Transceiver mode.");
+                return;
+            }
             const name = document.getElementById("input-username").value;
             const user_id = document.getElementById("input-uuid").value;
             const email = document.getElementById("input-email").value;
             const phone_number = document.getElementById("input-phone").value;
+            const org_id = document.getElementById("input-org-id").value;
+            const hub_id = document.getElementById("input-hub-id").value;
             
             try {
                 const res = await fetch("/api/sandbox/user", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ user_id, name, email, phone_number })
+                    body: JSON.stringify({ user_id, name, email, phone_number, org_id, hub_id })
                 });
                 if (res.ok) {
                     log(`Saved user profile: UID='${user_id}', Phone='${phone_number}', Name='${name}'`, "info");
@@ -1201,6 +1248,10 @@
         }
 
         function openRoleModal() {
+            if (selectedDbGatewayMode) {
+                alert("Role checks are locked to your developer credentials while in Live Transceiver mode.");
+                return;
+            }
             document.getElementById("role-modal").classList.add("open");
         }
 
@@ -1238,6 +1289,10 @@
         }
 
         function openScopeModal() {
+            if (selectedDbGatewayMode) {
+                alert("Scope is locked to your developer token configuration while in Live Transceiver mode.");
+                return;
+            }
             document.getElementById("scope-modal").classList.add("open");
         }
 
@@ -1285,8 +1340,15 @@
                 
                 selectDbMode(selectedDbGatewayMode);
                 updateDbHeader(settings);
+
+                // Load config.json Agent UUID
+                const configRes = await fetch("/api/sandbox/config");
+                if (configRes.ok) {
+                    const config = await configRes.json();
+                    document.getElementById("input-agent-id").value = config.id || "";
+                }
             } catch (e) {
-                log("Failed to load database transceiver settings from server", "error");
+                log("Failed to load settings or configuration from server", "error");
             }
         }
 
@@ -1327,26 +1389,57 @@
             const dev_gateway = selectedDbGatewayMode;
             const dev_pat = document.getElementById("input-dev-pat").value.trim();
             const dev_gateway_url = document.getElementById("input-gateway-url").value.trim();
+            const agentId = document.getElementById("input-agent-id").value.trim();
             
-            if (dev_gateway && !dev_pat) {
-                alert("Please enter a Developer Personal Access Token (PAT) to enable Transceiver Mode.");
-                return;
+            if (dev_gateway) {
+                if (!dev_pat) {
+                    alert("Please enter a Developer Personal Access Token (PAT) to enable Transceiver Mode.");
+                    return;
+                }
+                const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!uuidRegex.test(agentId)) {
+                    alert("Please enter a valid Agent UUID (e.g. 123e4567-e89b-12d3-a456-426614174000) before enabling the live connection.");
+                    return;
+                }
             }
 
             try {
+                // First save the agent ID to config.json
+                const configRes = await fetch("/api/sandbox/config", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: agentId })
+                });
+                
+                if (!configRes.ok) {
+                    const errData = await configRes.json();
+                    log(`Failed to update agent config: ${errData.detail || 'Unknown error'}`, "error");
+                    alert(`Failed to update agent config: ${errData.detail || 'Unknown error'}`);
+                    return;
+                }
+                
+                log(`Updated agent ID in config.json to: '${agentId}'`, "info");
+
                 const res = await fetch("/api/sandbox/settings", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ dev_gateway, dev_pat, dev_gateway_url })
                 });
+                
                 if (res.ok) {
                     const text = dev_gateway ? "Transceiver Mode (Live Dev Firestore)" : "Offline Sandbox Mode (local_db.json)";
                     log(`Saved connection mode: ${text}`, "info");
                     closeDbModal();
                     await loadSettings();
+                    await loadProfile(); // Trigger profile reload to fetch synced developer details
+                } else {
+                    const errData = await res.json();
+                    log(`Failed to save settings: ${errData.detail || 'Unknown error'}`, "error");
+                    alert(`Failed to save settings: ${errData.detail || 'Unknown error'}`);
                 }
             } catch(e) {
                 log(`Failed to update database settings: ${e}`, "error");
+                alert(`Failed to update database settings: ${e}`);
             }
         }
 
