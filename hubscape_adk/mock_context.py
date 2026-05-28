@@ -389,7 +389,7 @@ async def get_adk_context(request: Request) -> HubscapeContext:
         except Exception:
             pass
 
-    return HubscapeContext(
+    context = HubscapeContext(
         user_id=mock_user["user_id"],
         user_name=mock_user["name"],
         user_email=mock_user["email"],
@@ -400,3 +400,14 @@ async def get_adk_context(request: Request) -> HubscapeContext:
         agent_permissions=permissions,
         agent_id=agent_id
     )
+
+    # Apply dynamic settings overrides from application state on the fly
+    if app_state and hasattr(app_state, "settings"):
+        settings = app_state.settings
+        context.dev_gateway = settings.get("dev_gateway", context.dev_gateway)
+        if "dev_pat" in settings:
+            context.dev_pat = settings["dev_pat"]
+        if "dev_gateway_url" in settings:
+            context.dev_gateway_url = settings["dev_gateway_url"]
+
+    return context

@@ -46,6 +46,13 @@ app.state.mock_user = {
 }
 app.state.last_widget_payload = None
 
+# Initialize settings state
+app.state.settings = {
+    "dev_gateway": os.getenv("HUBSCAPE_DEV_GATEWAY") == "true",
+    "dev_pat": os.getenv("HUBSCAPE_DEV_PAT", ""),
+    "dev_gateway_url": os.getenv("HUBSCAPE_DEV_GATEWAY_URL", "https://hubscape-b9558.web.app")
+}
+
 # Globals for the loaded agent
 AGENT_CONFIG = {}
 AGENT_LOGIC = None
@@ -419,6 +426,17 @@ async def update_user(req_body: dict):
 @app.get("/api/sandbox/user")
 async def get_user():
     return app.state.mock_user
+
+# Get Settings in Sandbox
+@app.get("/api/sandbox/settings")
+async def get_settings():
+    return app.state.settings
+
+# Update Settings in Sandbox
+@app.post("/api/sandbox/settings")
+async def update_settings(req_body: dict):
+    app.state.settings.update(req_body)
+    return {"status": "success", "settings": app.state.settings}
 
 # Serve Holodeck Static Files
 @app.get("/", response_class=HTMLResponse)
