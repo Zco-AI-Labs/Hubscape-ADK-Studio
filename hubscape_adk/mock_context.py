@@ -17,7 +17,7 @@ class AuthContext:
     """Wrapper for user authentication details and permissions in the ADK context."""
     def __init__(self, user_id: str, name: Optional[str] = None, email: Optional[str] = None, phone_number: Optional[str] = None, hub_id: Optional[str] = None, org_id: Optional[str] = None, roles: Optional[list] = None, permissions: Optional[dict] = None, agent_id: Optional[str] = None):
         self.uid = user_id
-        self.name = name or "Developer"
+        self.name = name or "Dev User"
         self.email = email or "dev@hubscape.com"
         self.phone_number = phone_number or "+15550199"
         self.hub_id = hub_id
@@ -367,9 +367,16 @@ class HubscapeContext:
 async def get_adk_context(request: Request) -> HubscapeContext:
     """FastAPI Dependency for local APIRouter testing."""
     app_state = getattr(request.app, "state", None)
-    mock_user = getattr(app_state, "mock_user", {
+    
+    # Check if dev_gateway is True in settings
+    dev_gateway_active = False
+    if app_state and hasattr(app_state, "settings"):
+        dev_gateway_active = app_state.settings.get("dev_gateway", False)
+        
+    user_source = "live_user" if dev_gateway_active else "mock_user"
+    mock_user = getattr(app_state, user_source, {
         "user_id": "dev-user-123",
-        "name": "Dev Officer",
+        "name": "Dev User",
         "email": "dev@hubscape.com",
         "phone_number": "+15550199",
         "roles": ["member", "Hub Admin"],
@@ -390,13 +397,13 @@ async def get_adk_context(request: Request) -> HubscapeContext:
             pass
 
     context = HubscapeContext(
-        user_id=mock_user["user_id"],
-        user_name=mock_user["name"],
-        user_email=mock_user["email"],
+        user_id=mock_user.get("user_id", "dev-user-123"),
+        user_name=mock_user.get("name", "Dev User"),
+        user_email=mock_user.get("email", "dev@hubscape.com"),
         phone_number=mock_user.get("phone_number", "+15550199"),
-        user_roles=mock_user["roles"],
-        hub_id=mock_user["hub_id"],
-        org_id=mock_user["org_id"],
+        user_roles=mock_user.get("roles", ["member"]),
+        hub_id=mock_user.get("hub_id"),
+        org_id=mock_user.get("org_id"),
         agent_permissions=permissions,
         agent_id=agent_id
     )
