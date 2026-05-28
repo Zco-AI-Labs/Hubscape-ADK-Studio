@@ -629,6 +629,16 @@ holodeck_dir = os.path.join(PACKAGE_DIR, "holodeck")
 if os.path.exists(holodeck_dir):
     app.mount("/holodeck", StaticFiles(directory=holodeck_dir), name="holodeck")
 
+def find_open_port(start_port: int) -> int:
+    import socket
+    port = start_port
+    while port < start_port + 100:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(('127.0.0.1', port)) != 0:
+                return port
+        port += 1
+    return start_port
+
 def main():
     # CLI flag checks
     if len(sys.argv) > 1 and sys.argv[1] in ("--update", "-u"):
@@ -645,12 +655,17 @@ def main():
             print(f"❌ Update failed: {e}")
             sys.exit(1)
 
+    # Scan for the first open port starting at 8090
+    port = find_open_port(8090)
+    if port != 8090:
+        logger.warning(f"⚠️ Port 8090 is occupied. Redirecting to open port {port}...")
+
     # Automatically open local browser tab
     try:
-        webbrowser.open("http://localhost:8090")
+        webbrowser.open(f"http://localhost:{port}")
     except Exception:
         pass
-    uvicorn.run("hubscape_adk.run_sandbox:app", host="0.0.0.0", port=8090, reload=True)
+    uvicorn.run("hubscape_adk.run_sandbox:app", host="0.0.0.0", port=port, reload=True)
 
 if __name__ == "__main__":
     main()
