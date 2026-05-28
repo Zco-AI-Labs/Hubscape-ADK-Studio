@@ -121,6 +121,19 @@
             box-shadow: 0 0 8px var(--border-glow);
         }
 
+        .summary-tag.active-gateway {
+            border-color: rgba(16, 185, 129, 0.4);
+            background: rgba(16, 185, 129, 0.08);
+            color: #10b981;
+        }
+
+        .summary-tag.active-gateway:hover {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+        }
+
         .profile-badge {
             background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border-color);
@@ -803,6 +816,7 @@
             <div class="session-summary">
                 Scope: <span class="summary-tag" id="scope-summary-tag" onclick="openScopeModal()" title="Click to edit Scope">Hub Scope</span>
                 Role: <span class="summary-tag" id="role-summary-tag" onclick="openRoleModal()" title="Click to edit Role">Hub Admin</span>
+                DB: <span class="summary-tag" id="db-summary-tag" onclick="openDbModal()" title="Click to toggle DB Connection Mode">Sandbox (Local)</span>
             </div>
             <div class="profile-badge" onclick="openProfileModal()">
                 <div class="status-dot"></div>
@@ -986,6 +1000,44 @@
             <div class="modal-footer">
                 <button class="btn secondary" onclick="closeScopeModal()">Cancel</button>
                 <button class="btn primary" onclick="saveScope()">Save Scope</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Database Configuration Modal -->
+    <div class="modal" id="db-modal">
+        <div class="modal-content">
+            <div class="modal-header">Database Connection Mode</div>
+            
+            <div class="form-group">
+                <label>Select connection mode for Firestore operations:</label>
+                <div class="choice-group" style="grid-template-columns: 1fr; gap: 10px; margin-top: 10px;">
+                    <div class="choice-card selected" id="db-offline-card" onclick="selectDbMode(false)">
+                        <div class="choice-indicator"></div>
+                        <span>Offline Sandbox (local_db.json)</span>
+                    </div>
+                    <div class="choice-card" id="db-live-card" onclick="selectDbMode(true)">
+                        <div class="choice-indicator"></div>
+                        <span>Live Gateway Transceiver (Firestore dev/staging)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="db-credentials-area" style="display: none;">
+                <div class="form-group">
+                    <label for="input-dev-pat">Developer Personal Access Token (PAT)</label>
+                    <input type="text" class="lego-input" id="input-dev-pat" placeholder="hs_pat_...">
+                </div>
+
+                <div class="form-group">
+                    <label for="input-gateway-url">Gateway Transceiver URL</label>
+                    <input type="text" class="lego-input" id="input-gateway-url" value="https://hubscape-b9558.web.app">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn secondary" onclick="closeDbModal()">Cancel</button>
+                <button class="btn primary" onclick="saveDbSettings()">Save Settings</button>
             </div>
         </div>
     </div>
@@ -1217,6 +1269,84 @@
                 }
             } catch(e) {
                 log(`Failed to update scope: ${e}`, "error");
+            }
+        }
+
+        let selectedDbGatewayMode = false;
+
+        async function loadSettings() {
+            try {
+                const res = await fetch("/api/sandbox/settings");
+                const settings = await res.json();
+                
+                selectedDbGatewayMode = settings.dev_gateway;
+                document.getElementById("input-dev-pat").value = settings.dev_pat || "";
+                document.getElementById("input-gateway-url").value = settings.dev_gateway_url || "https://hubscape-b9558.web.app";
+                
+                selectDbMode(selectedDbGatewayMode);
+                updateDbHeader(settings);
+            } catch (e) {
+                log("Failed to load database transceiver settings from server", "error");
+            }
+        }
+
+        function updateDbHeader(settings) {
+            const dbTag = document.getElementById("db-summary-tag");
+            if (settings.dev_gateway) {
+                dbTag.innerText = "Transceiver (Live)";
+                dbTag.className = "summary-tag active-gateway";
+            } else {
+                dbTag.innerText = "Sandbox (Local)";
+                dbTag.className = "summary-tag";
+            }
+        }
+
+        function openDbModal() {
+            document.getElementById("db-modal").classList.add("open");
+        }
+
+        function closeDbModal() {
+            document.getElementById("db-modal").classList.remove("open");
+        }
+
+        function selectDbMode(mode) {
+            selectedDbGatewayMode = mode;
+            document.querySelectorAll(".choice-card[id^='db-']").forEach(card => card.classList.remove("selected"));
+            
+            const credsArea = document.getElementById("db-credentials-area");
+            if (mode) {
+                document.getElementById("db-live-card").classList.add("selected");
+                credsArea.style.display = "block";
+            } else {
+                document.getElementById("db-offline-card").classList.add("selected");
+                credsArea.style.display = "none";
+            }
+        }
+
+        async function saveDbSettings() {
+            const dev_gateway = selectedDbGatewayMode;
+            const dev_pat = document.getElementById("input-dev-pat").value.trim();
+            const dev_gateway_url = document.getElementById("input-gateway-url").value.trim();
+            
+            if (dev_gateway && !dev_pat) {
+                alert("Please enter a Developer Personal Access Token (PAT) to enable Transceiver Mode.");
+                return;
+            }
+
+            try {
+                const res = await fetch("/api/sandbox/settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ dev_gateway, dev_pat, dev_gateway_url })
+                });
+                if (res.ok) {
+                    const text = dev_gateway ? "Transceiver Mode (Live Dev Firestore)" : "Offline Sandbox Mode (local_db.json)";
+                    log(`Saved connection mode: ${text}`, "info");
+                    closeDbModal();
+                    await loadSettings();
+                }
+            } catch(e) {
+                log(`Failed to update database settings: ${e}`, "error");
             }
         }
 
@@ -1465,6 +1595,7 @@
         // Initialize
         window.onload = () => {
             loadProfile();
+            loadSettings();
             log("ADK Studio Holodeck active. Ready for simulation.", "info");
         };
     </script>
