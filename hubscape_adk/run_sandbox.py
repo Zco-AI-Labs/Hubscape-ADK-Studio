@@ -4,6 +4,7 @@ import logging
 import importlib.util
 import sys
 import webbrowser
+import subprocess
 from typing import List, Dict, Any, Optional
 
 import uvicorn
@@ -14,6 +15,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+GITHUB_BRANCH = "feat/v1-updates"
+
+# Read version dynamically from version.txt inside package directory
+VERSION_PATH = os.path.join(PACKAGE_DIR, "version.txt")
+if os.path.exists(VERSION_PATH):
+    with open(VERSION_PATH, "r") as f:
+        __version__ = f.read().strip()
+else:
+    __version__ = "1.0.0"
 
 # Initialize logger
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -463,6 +473,48 @@ async def update_config(payload: ConfigUpdate):
         logger.error(f"Failed to update config.json: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update config.json: {str(e)}")
 
+@app.get("/api/sandbox/update-check")
+async def check_updates():
+    url = f"https://raw.githubusercontent.com/Zco-AI-Labs/Hubscape-ADK-Studio/{GITHUB_BRANCH}/version.txt"
+    try:
+        import requests
+        logger.info(f"📡 Checking for ADK updates from: {url}...")
+        response = requests.get(url, timeout=2.0)
+        if response.status_code == 200:
+            remote_ver_str = response.text.strip()
+            
+            # Helper to parse version string safely to tuple of integers
+            def parse_version(v_str):
+                return tuple(int(x) for x in v_str.split("."))
+            
+            try:
+                local_ver = parse_version(__version__)
+                remote_ver = parse_version(remote_ver_str)
+                if remote_ver > local_ver:
+                    logger.info(f"🚀 New ADK Studio version found: {remote_ver_str} (Local: {__version__})")
+                    return {
+                        "update_available": True,
+                        "local_version": __version__,
+                        "remote_version": remote_ver_str,
+                        "command": f"pip install --upgrade git+https://github.com/Zco-AI-Labs/Hubscape-ADK-Studio.git@{GITHUB_BRANCH}"
+                    }
+            except Exception as parse_err:
+                logger.error(f"Error parsing version string: {parse_err}")
+                
+        return {
+            "update_available": False,
+            "local_version": __version__,
+            "remote_version": __version__
+        }
+    except Exception as e:
+        logger.warning(f"⚠️ Gracefully skipped update check: {e}")
+        return {
+            "update_available": False,
+            "local_version": __version__,
+            "remote_version": __version__,
+            "error": str(e)
+        }
+
 # Get Settings in Sandbox
 @app.get("/api/sandbox/settings")
 async def get_settings():
@@ -578,6 +630,21 @@ if os.path.exists(holodeck_dir):
     app.mount("/holodeck", StaticFiles(directory=holodeck_dir), name="holodeck")
 
 def main():
+    # CLI flag checks
+    if len(sys.argv) > 1 and sys.argv[1] in ("--update", "-u"):
+        print("📡 Pulling latest ADK Studio version from GitHub...")
+        cmd = [
+            sys.executable, "-m", "pip", "install", "--upgrade",
+            f"git+https://github.com/Zco-AI-Labs/Hubscape-ADK-Studio.git@{GITHUB_BRANCH}"
+        ]
+        try:
+            subprocess.run(cmd, check=True)
+            print("✅ Update complete! Please restart the ADK Studio to apply changes.")
+            sys.exit(0)
+        except Exception as e:
+            print(f"❌ Update failed: {e}")
+            sys.exit(1)
+
     # Automatically open local browser tab
     try:
         webbrowser.open("http://localhost:8090")
