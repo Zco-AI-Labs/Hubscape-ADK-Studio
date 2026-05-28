@@ -1,0 +1,64 @@
+{
+    "id": "todo_agent",
+    "name": "Todo Agent",
+    "description": "Helps you manage your daily tasks, check list items, and stay organized.",
+    "is_global": true,
+    "system_prompt": "You are a friendly Task Organizer Agent. Your job is to help users manage their todo lists. Always use your tools to load tasks, add new tasks, or mark tasks as completed. Always confirm the action to the user.",
+    "tools": [
+        {
+            "name": "list_tasks",
+            "description": "Lists all current tasks for the user.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
+            "name": "add_task",
+            "description": "Adds a new task to the user's todo list.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "title": {
+                        "type": "STRING",
+                        "description": "The title or description of the task."
+                    },
+                    "priority": {
+                        "type": "STRING",
+                        "description": "Task priority level: high, medium, or low.",
+                        "enum": ["high", "medium", "low"]
+                    }
+                },
+                "required": ["title"]
+            }
+        },
+        {
+            "name": "complete_task",
+            "description": "Marks a task as completed.",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "task_id": {
+                        "type": "STRING",
+                        "description": "The unique ID of the task to mark as complete."
+                    }
+                },
+                "required": ["task_id"]
+            }
+        }
+    ],
+    "permissions": {
+        "list_tasks": ["member"],
+        "add_task": ["member"],
+        "complete_task": ["member"]
+    },
+    "ui": {
+        "control_mode": "hybrid",
+        "theme": {
+            "colorTheme": "emerald",
+            "borderRadius": "md"
+        },
+        "allow_styling_override": true
+    }
+}
