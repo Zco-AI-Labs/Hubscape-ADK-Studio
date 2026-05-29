@@ -1330,6 +1330,23 @@
         let selectedRoleName = "Hub Admin";
         let selectedScopeLevel = "hub";
 
+        function getActiveContext() {
+            const isLive = selectedDbGatewayMode;
+            const pat = document.getElementById("input-dev-pat").value.trim();
+            const hubId = isLive 
+                ? document.getElementById("live-hub-id").value.trim() 
+                : document.getElementById("input-hub-id").value.trim();
+            const orgId = isLive 
+                ? document.getElementById("live-org-id").value.trim() 
+                : document.getElementById("input-org-id").value.trim();
+            
+            return {
+                authToken: pat || "mock-developer-token",
+                hubId: hubId || "dev-hub-abc",
+                orgId: orgId || "dev-org-xyz"
+            };
+        }
+
         function log(message, type = "info") {
             const container = document.getElementById("console-logs");
             const entry = document.createElement("div");
@@ -2286,8 +2303,29 @@
                 case "iframe":
                     el = document.createElement("iframe");
                     el.className = `lego-iframe ${node.props?.className || ''}`;
-                    el.src = node.props?.src || "about:blank";
                     el.style.height = node.props?.height || "300px";
+                    
+                    const iframeContext = getActiveContext();
+                    let rawSrc = node.props?.src || "about:blank";
+                    if (rawSrc !== "about:blank") {
+                        try {
+                            let url;
+                            if (rawSrc.startsWith("/")) {
+                                url = new URL(rawSrc, window.location.origin);
+                            } else {
+                                url = new URL(rawSrc);
+                            }
+                            url.searchParams.set("authToken", iframeContext.authToken);
+                            url.searchParams.set("hubId", iframeContext.hubId);
+                            url.searchParams.set("orgId", iframeContext.orgId);
+                            el.src = url.toString();
+                        } catch (e) {
+                            const sep = rawSrc.includes("?") ? "&" : "?";
+                            el.src = `${rawSrc}${sep}authToken=${encodeURIComponent(iframeContext.authToken)}&hubId=${encodeURIComponent(iframeContext.hubId)}&orgId=${encodeURIComponent(iframeContext.orgId)}`;
+                        }
+                    } else {
+                        el.src = rawSrc;
+                    }
                     break;
 
                 default:
@@ -2378,7 +2416,17 @@
 
         // --- Bidirectional IFrame Communication (postMessage) ---
         window.addEventListener('message', async (event) => {
-            if (event.data && event.data.type === 'SUBMIT_FORM') {
+            if (event.data && event.data.type === 'GET_CONTEXT') {
+                const context = getActiveContext();
+                event.source.postMessage({
+                    type: 'CONTEXT_RESPONSE',
+                    payload: {
+                        authToken: context.authToken,
+                        hubId: context.hubId,
+                        orgId: context.orgId
+                    }
+                }, '*');
+            } else if (event.data && event.data.type === 'SUBMIT_FORM') {
                 const { actionUrl, payload } = event.data;
                 log(`IFrame Form Submitted -> POST ${actionUrl} with ${JSON.stringify(payload)}`, "info");
                 try {
