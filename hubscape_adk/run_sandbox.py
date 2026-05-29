@@ -211,6 +211,7 @@ def setup_agent():
 class ChatMessage(BaseModel):
     message: str
     history: List[Dict[str, Any]] = []
+    host_emulation: bool = False
 
 class TriggerToolRequest(BaseModel):
     tool_name: str
@@ -312,12 +313,140 @@ async def run_tool(name: str, args: dict, context: HubscapeContext) -> dict:
         logger.error(f"💥 Exception in tool '{name}': {e}", exc_info=True)
         return {"error": f"Tool execution failed: {str(e)}"}
 
+# Helper function to execute the sub-agent GenAI orchestration loop
+async def run_agent_loop(
+    query: str,
+    history: List[Dict[str, Any]],
+    context: HubscapeContext,
+    api_key: str,
+    client: Any,
+    steps: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    from google.genai import types
+    agent_id = AGENT_CONFIG.get("id", "todo_agent")
+    
+    # Convert config tools into Google GenAI Tool models
+    genai_tools = []
+    for t in AGENT_CONFIG.get("tools", []):
+        params_dict = t.get("parameters", {})
+        properties = {}
+        for k, prop in params_dict.get("properties", {}).items():
+            prop_type = prop.get("type", "STRING")
+            properties[k] = types.Schema(
+                type=types.Type[prop_type],
+                description=prop.get("description", "")
+            )
+        
+        schema = types.Schema(
+            type=types.Type.OBJECT,
+            properties=properties,
+            required=params_dict.get("required", [])
+        )
+        
+        genai_tools.append(
+            types.FunctionDeclaration(
+                name=t["name"],
+                description=t["description"],
+                parameters=schema
+            )
+        )
+    
+    config = types.GenerateContentConfig(
+        system_instruction=AGENT_CONFIG.get("system_prompt", ""),
+        tools=[types.Tool(function_declarations=genai_tools)] if genai_tools else None,
+        temperature=0.7
+    )
+
+    # Assemble conversation history format
+    contents = []
+    for h in history:
+        role = "user" if h["role"] == "user" else "model"
+        part_content = h.get("content", "")
+        if part_content.startswith("[Tool calls") or part_content.startswith("🤖 [Manual Router]") or part_content.startswith("[Host AI"):
+            continue
+        contents.append(types.Content(role=role, parts=[types.Part.from_text(text=part_content)]))
+    
+    contents.append(types.Content(role="user", parts=[types.Part.from_text(text=query)]))
+    
+    steps.append({"name": "Platform Host", "detail": f"Booted agent '{agent_id}' system prompt.", "status": "success"})
+    
+    # Call Gemini model
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=contents,
+        config=config
+    )
+    
+    history_out = list(history) + [{"role": "user", "content": query}]
+    
+    # Handle function calls in a loop (up to 3 iterations for tool chaining)
+    for _ in range(3):
+        if not response.function_calls:
+            break
+            
+        tool_calls = response.function_calls
+        history_out.append({"role": "model", "content": f"[Tool calls requested: {len(tool_calls)}]"})
+        
+        tool_parts = []
+        for call in tool_calls:
+            steps.append({"name": f"Tool Called: {call.name}", "detail": f"Args: {json.dumps(dict(call.args))}", "status": "running"})
+            
+            # Run the logic tool
+            result = await run_tool(call.name, dict(call.args), context)
+            
+            status = "error" if "error" in result else "success"
+            steps[-1]["status"] = status
+            steps[-1]["detail"] = f"Output: {json.dumps(result)[:80]}..."
+            
+            tool_parts.append(
+                types.Part.from_function_response(
+                    name=call.name,
+                    response={"result": result}
+                )
+            )
+            
+        # Feed the tool results back into Gemini
+        contents.append(response.candidates[0].content)
+        contents.append(types.Content(role="tool", parts=tool_parts))
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents,
+            config=config
+        )
+        
+    final_text = response.text or "[Visual Update Rendered]"
+    history_out.append({"role": "model", "content": final_text})
+    steps.append({"name": "Agent Response", "detail": final_text[:80], "status": "success"})
+    
+    return {
+        "response": final_text,
+        "history": history_out
+    }
+
 # Chat API Router
 @app.post("/api/chat")
 async def chat(payload: ChatMessage, context: HubscapeContext = Depends(get_adk_context)):
     api_key = app.state.settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
     user_msg = payload.message
     agent_id = AGENT_CONFIG.get("id", "todo_agent")
+
+    # If Host Emulation is requested but API key is missing
+    if payload.host_emulation and not api_key:
+        return {
+            "response": "⚠️ Host Emulation Mode requires a Gemini API Key to run. Please add your key in the settings panel first.",
+            "history": payload.history + [{"role": "user", "content": user_msg}, {"role": "model", "content": "Host Emulation requires API Key."}],
+            "widgetPayload": None,
+            "trace": {
+                "query": user_msg,
+                "agent_id": agent_id,
+                "mode": "Host Emulation Error",
+                "steps": [
+                    {"name": "User Input", "detail": user_msg, "status": "success"},
+                    {"name": "Host AI", "detail": "API Key Missing", "status": "error"}
+                ]
+            }
+        }
     
     if not api_key:
         # Fallback to Mock / Rules Engine
@@ -439,120 +568,148 @@ async def chat(payload: ChatMessage, context: HubscapeContext = Depends(get_adk_
     try:
         # Initialize Google GenAI client
         client = genai.Client(api_key=api_key)
+        steps = [{"name": "User Input", "detail": user_msg, "status": "success"}]
         
-        # Convert config tools into Google GenAI Tool models
-        genai_tools = []
-        for t in AGENT_CONFIG.get("tools", []):
-            params_dict = t.get("parameters", {})
-            properties = {}
-            for k, prop in params_dict.get("properties", {}).items():
-                prop_type = prop.get("type", "STRING")
-                properties[k] = types.Schema(
-                    type=types.Type[prop_type],
-                    description=prop.get("description", "")
-                )
+        if payload.host_emulation:
+            # Host Emulation Mode (Chat with mock platform Host AI)
+            agent_name = AGENT_CONFIG.get("name", "Custom Agent")
+            agent_desc = AGENT_CONFIG.get("description", "A custom agent.")
             
-            schema = types.Schema(
-                type=types.Type.OBJECT,
-                properties=properties,
-                required=params_dict.get("required", [])
-            )
-            
-            genai_tools.append(
-                types.FunctionDeclaration(
-                    name=t["name"],
-                    description=t["description"],
-                    parameters=schema
-                )
-            )
-        
-        config = types.GenerateContentConfig(
-            system_instruction=AGENT_CONFIG.get("system_prompt", ""),
-            tools=[types.Tool(function_declarations=genai_tools)] if genai_tools else None,
-            temperature=0.7
-        )
+            host_system_instruction = f"""You are the Hubscape platform Host AI.
+You are a capable, empathetic, and professional operations manager for this workspace.
 
-        # Assemble conversation history format
-        contents = []
-        for h in payload.history:
-            role = "user" if h["role"] == "user" else "model"
-            # Protect against empty content or special mock logs
-            part_content = h.get("content", "")
-            if part_content.startswith("[Tool calls"):
-                continue
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=part_content)]))
-        
-        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg)]))
-        
-        steps = [
-            {"name": "User Input", "detail": user_msg, "status": "success"},
-            {"name": "Platform Host", "detail": f"Booted agent '{agent_id}' system prompt.", "status": "success"}
-        ]
-        
-        # Call Gemini model
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=config
-        )
-        
-        history_out = payload.history + [{"role": "user", "content": user_msg}]
-        
-        # Handle function calls in a loop (up to 3 iterations for tool chaining)
-        for _ in range(3):
-            if not response.function_calls:
-                break
-                
-            tool_calls = response.function_calls
-            history_out.append({"role": "model", "content": f"[Tool calls requested: {len(tool_calls)}]"})
-            
-            tool_parts = []
-            for call in tool_calls:
-                steps.append({"name": f"Tool Called: {call.name}", "detail": f"Args: {json.dumps(dict(call.args))}", "status": "running"})
-                
-                # Run the logic tool
-                result = await run_tool(call.name, dict(call.args), context)
-                
-                status = "error" if "error" in result else "success"
-                steps[-1]["status"] = status
-                steps[-1]["detail"] = f"Output: {json.dumps(result)[:80]}..."
-                
-                tool_parts.append(
-                    types.Part.from_function_response(
-                        name=call.name,
-                        response={"result": result}
+You have access to exactly ONE specialized modular agent plugin:
+- Agent ID: '{agent_id}'
+- Agent Name: '{agent_name}'
+- Agent Description: '{agent_desc}'
+
+Your job is to assist the user. If the user asks a question or requests a task that matches the agent's description or implies using its capabilities, you MUST delegate the request to the agent by calling the 'consult_agent' tool.
+In your query argument to 'consult_agent', specify the exact natural language query/instruction the user wants the agent to perform, including any relevant context. Do NOT guess what the agent will do or respond directly if it matches the agent's capabilities.
+
+If the user's request is completely unrelated to the agent's description (e.g. asking about general knowledge, the weather, math, general chatting, or a feature this agent does not support), you must NOT call the 'consult_agent' tool. Instead, respond directly to the user in natural language, explain that you are the primary Host AI, and clarify that the requested action is not supported by the active agent.
+
+Simulated User Context:
+- Name: {app.state.live_user.get("name", "Dev User")}
+- Email: {app.state.live_user.get("email", "")}
+- Roles: {json.dumps(app.state.live_user.get("roles", ["Hub Admin", "member"]))}
+- Active Scope: {app.state.settings.get("scope", "hub")}
+- Hub ID: {app.state.live_user.get("hub_id", "")}
+- Org ID: {app.state.live_user.get("org_id", "")}
+"""
+            host_tools = [
+                types.FunctionDeclaration(
+                    name="consult_agent",
+                    description=f"Consult the specialized agent '{agent_name}' to handle tasks matching its description: {agent_desc}",
+                    parameters=types.Schema(
+                        type=types.Type.OBJECT,
+                        properties={
+                            "query": types.Schema(
+                                type=types.Type.STRING,
+                                description="The context-wrapped natural language query/instruction to pass to the agent."
+                            )
+                        },
+                        required=["query"]
                     )
                 )
-                
-            # Feed the tool results back into Gemini
-            contents.append(response.candidates[0].content)
-            contents.append(types.Content(role="tool", parts=tool_parts))
+            ]
+            
+            # Assemble host conversation history format
+            contents = []
+            for h in payload.history:
+                role = "user" if h["role"] == "user" else "model"
+                part_content = h.get("content", "")
+                if part_content.startswith("[Tool calls") or part_content.startswith("🤖 [Manual Router]") or part_content.startswith("[Host AI"):
+                    continue
+                contents.append(types.Content(role=role, parts=[types.Part.from_text(text=part_content)]))
+            
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg)]))
+            
+            steps.append({"name": "Platform Host", "detail": "Booted Host AI Emulation loop.", "status": "success"})
+            
+            host_config = types.GenerateContentConfig(
+                system_instruction=host_system_instruction,
+                tools=[types.Tool(function_declarations=host_tools)],
+                temperature=0.7
+            )
             
             response = client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=contents,
-                config=config
+                config=host_config
             )
             
-        final_text = response.text or "[Visual Update Rendered]"
-        history_out.append({"role": "model", "content": final_text})
-        steps.append({"name": "Agent Response", "detail": final_text[:80], "status": "success"})
-        
-        if context._widget_payload:
-            steps.append({"name": "Render Widget", "detail": f"Widget ID: {context._widget_payload.get('widgetId')}", "status": "success"})
+            history_out = payload.history + [{"role": "user", "content": user_msg}]
             
-        return {
-            "response": final_text,
-            "history": history_out,
-            "widgetPayload": context._widget_payload,
-            "trace": {
-                "query": user_msg,
-                "agent_id": agent_id,
-                "mode": "Live Gemini Orchestrator",
-                "steps": steps
+            # If Host AI decided to consult the agent
+            if response.function_calls:
+                call = response.function_calls[0]
+                if call.name == "consult_agent":
+                    delegated_query = call.args.get("query")
+                    steps.append({
+                        "name": "Host Decision", 
+                        "detail": f"Consulting Agent '{agent_id}' with query: '{delegated_query}'", 
+                        "status": "running"
+                    })
+                    
+                    # Run the actual sub-agent LLM loop using the delegated query
+                    agent_res = await run_agent_loop(delegated_query, [], context, api_key, client, steps)
+                    
+                    steps[-1]["status"] = "success"
+                    steps[-1]["detail"] = f"Agent finished. Response: {agent_res['response'][:60]}..."
+                    
+                    # Feed the agent response back to Host AI
+                    contents.append(response.candidates[0].content)
+                    contents.append(types.Content(role="tool", parts=[
+                        types.Part.from_function_response(
+                            name="consult_agent",
+                            response={"result": agent_res["response"]}
+                        )
+                    ]))
+                    
+                    # Call Host AI again to summarize/conclude
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=contents,
+                        config=host_config
+                    )
+            
+            final_text = response.text or "[Host AI delegation complete]"
+            history_out.append({"role": "model", "content": final_text})
+            steps.append({"name": "Host Response", "detail": final_text[:80], "status": "success"})
+            
+            if context._widget_payload:
+                steps.append({"name": "Render Widget", "detail": f"Widget ID: {context._widget_payload.get('widgetId')}", "status": "success"})
+                
+            return {
+                "response": final_text,
+                "history": history_out,
+                "widgetPayload": context._widget_payload,
+                "trace": {
+                    "query": user_msg,
+                    "agent_id": agent_id,
+                    "mode": "Host AI Emulation Mode",
+                    "steps": steps
+                }
             }
-        }
-        
+        else:
+            # Direct Chat Mode
+            agent_res = await run_agent_loop(user_msg, payload.history, context, api_key, client, steps)
+            
+            if context._widget_payload:
+                steps.append({"name": "Render Widget", "detail": f"Widget ID: {context._widget_payload.get('widgetId')}", "status": "success"})
+                
+            return {
+                "response": agent_res["response"],
+                "history": agent_res["history"],
+                "widgetPayload": context._widget_payload,
+                "trace": {
+                    "query": user_msg,
+                    "agent_id": agent_id,
+                    "mode": "Direct Agent Chat",
+                    "steps": steps
+                }
+            }
+            
     except Exception as e:
         logger.error(f"GenAI Loop failure: {e}", exc_info=True)
         return {
