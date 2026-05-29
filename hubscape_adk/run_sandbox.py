@@ -107,6 +107,37 @@ def load_local_module(module_name: str, file_path: str):
         logger.error(f"❌ Error loading local module {module_name}: {e}")
         raise e
 
+def check_nested_iframe(node: dict, under_container: bool = False, file_name: str = ""):
+    if not isinstance(node, dict):
+        return
+    node_type = node.get("type")
+    is_container = (node_type == "container")
+    
+    if node_type == "iframe" and under_container:
+        logger.warning(f"WARNING: {file_name} nests an 'iframe' inside a 'container'. \nStandard postMessage form routing will be bypassed. Ensure iframe uses direct REST fetch.")
+        print(f"\nWARNING: {file_name} nests an 'iframe' inside a 'container'. \nStandard postMessage form routing will be bypassed. Ensure iframe uses direct REST fetch.\n")
+        
+    children = node.get("children")
+    if isinstance(children, list):
+        for child in children:
+            if isinstance(child, dict):
+                check_nested_iframe(child, under_container or is_container, file_name)
+
+def lint_widgets():
+    widgets_dir = "widgets"
+    if not os.path.exists(widgets_dir) or not os.path.isdir(widgets_dir):
+        return
+        
+    for file in os.listdir(widgets_dir):
+        if file.endswith(".json"):
+            file_path = os.path.join(widgets_dir, file)
+            try:
+                with open(file_path, "r") as f:
+                    widget_data = json.load(f)
+                check_nested_iframe(widget_data, under_container=False, file_name=file)
+            except Exception as e:
+                logger.debug(f"Failed to lint widget file {file}: {e}")
+
 # Setup Agent on Startup
 @app.on_event("startup")
 def setup_agent():
@@ -172,6 +203,9 @@ def setup_agent():
         except Exception as e:
             logger.warning(f"⚠️ Startup token verification failed: {e}")
             app.state.settings["dev_gateway_connected"] = False
+
+    # Lint local widgets folder
+    lint_widgets()
 
 # Request Models
 class ChatMessage(BaseModel):
