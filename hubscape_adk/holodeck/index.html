@@ -1009,9 +1009,8 @@
                         You can chat with the agent here. The studio will dynamically execute your `logic.py` tool handlers and render standard visual Lego widgets.
                         <br><br>
                         <strong>Quick Simulation Commands:</strong>
-                        <div class="tool-triggers">
-                            <div class="tool-pill" onclick="sendInput('list tasks')">📋 list tasks</div>
-                            <div class="tool-pill" onclick="sendInput('add task secure the perimeter')">➕ add task</div>
+                        <div class="tool-triggers" id="quick-tool-triggers">
+                            <span style="font-size: 11px; color: var(--text-muted);">Loading declared tools...</span>
                         </div>
                     </div>
                 </div>
@@ -1277,6 +1276,15 @@
                 </div>
             </div>
 
+            <!-- AI Chat Orchestration Settings -->
+            <div class="form-group" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                <label for="input-gemini-key" style="display: flex; align-items: center; gap: 6px;">
+                    <span>Gemini API Key (Optional)</span>
+                    <span style="font-size: 10px; color: var(--text-muted); font-weight: normal;">[For local AI chat orchestration]</span>
+                </label>
+                <input type="password" class="lego-input" id="input-gemini-key" placeholder="Enter your GEMINI_API_KEY...">
+            </div>
+
             <div class="modal-footer">
                 <button class="btn secondary" onclick="closeDbModal()">Cancel</button>
                 <button class="btn primary" onclick="saveDbSettings()">Save Settings</button>
@@ -1307,6 +1315,11 @@
             <div class="form-group" style="margin-bottom: 24px;">
                 <label for="wizard-gateway-url" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 6px; color: var(--text-muted);">Gateway Transceiver URL</label>
                 <input type="text" class="lego-input" id="wizard-gateway-url" value="https://hubscape-b9558.web.app" style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 24px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 16px;">
+                <label for="wizard-gemini-key" style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 6px; color: var(--text-muted);">Gemini API Key (Optional, for local AI chat orchestration)</label>
+                <input type="password" class="lego-input" id="wizard-gemini-key" placeholder="Enter your GEMINI_API_KEY..." style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-main); font-size: 13px;">
             </div>
 
             <!-- Error message container -->
@@ -1706,6 +1719,7 @@
                 devGatewayConnected = settings.dev_gateway_connected || false;
                 document.getElementById("input-dev-pat").value = settings.dev_pat || "";
                 document.getElementById("input-gateway-url").value = settings.dev_gateway_url || "https://hubscape-b9558.web.app";
+                document.getElementById("input-gemini-key").value = settings.gemini_api_key || "";
                 
                 tempDbGatewayMode = selectedDbGatewayMode;
                 selectDbModeVisual(tempDbGatewayMode);
@@ -1718,6 +1732,27 @@
                     const configId = config.id || "";
                     document.getElementById("input-agent-id").value = configId;
 
+                    // Populate quick simulation commands dynamically
+                    const triggersDiv = document.getElementById("quick-tool-triggers");
+                    if (triggersDiv) {
+                        triggersDiv.innerHTML = "";
+                        const tools = config.tools || [];
+                        if (tools.length > 0) {
+                            tools.forEach(tool => {
+                                const toolName = tool.name;
+                                if (toolName) {
+                                    const pill = document.createElement("div");
+                                    pill.className = "tool-pill";
+                                    pill.onclick = () => sendInput(toolName);
+                                    pill.innerText = `⚡ ${toolName}`;
+                                    triggersDiv.appendChild(pill);
+                                }
+                            });
+                        } else {
+                            triggersDiv.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">No tools defined in config.json</span>`;
+                        }
+                    }
+
                     // Trigger Setup Wizard onboarding check
                     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     const devPat = settings.dev_pat || "";
@@ -1729,6 +1764,7 @@
                         document.getElementById("wizard-agent-id").value = (configId === "todo_agent" || configId === "YOUR_ASSIGNED_AGENT_UUID") ? "" : configId;
                         document.getElementById("wizard-dev-pat").value = devPat;
                         document.getElementById("wizard-gateway-url").value = settings.dev_gateway_url || "https://hubscape-b9558.web.app";
+                        document.getElementById("wizard-gemini-key").value = settings.gemini_api_key || "";
                         document.getElementById("wizard-error-msg").style.display = "none";
                         document.getElementById("setup-wizard-modal").classList.add("open");
                     }
@@ -1748,6 +1784,7 @@
             const agentId = document.getElementById("wizard-agent-id").value.trim();
             const dev_pat = document.getElementById("wizard-dev-pat").value.trim();
             const dev_gateway_url = document.getElementById("wizard-gateway-url").value.trim();
+            const gemini_api_key = document.getElementById("wizard-gemini-key").value.trim();
             const errorMsg = document.getElementById("wizard-error-msg");
             const btnConnect = document.getElementById("btn-wizard-connect");
 
@@ -1786,7 +1823,7 @@
                 const res = await fetch("/api/sandbox/settings", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ dev_gateway: true, dev_pat, dev_gateway_url })
+                    body: JSON.stringify({ dev_gateway: true, dev_pat, dev_gateway_url, gemini_api_key })
                 });
 
                 if (!res.ok) {
@@ -1888,6 +1925,7 @@
             const dev_pat = document.getElementById("input-dev-pat").value.trim();
             const dev_gateway_url = document.getElementById("input-gateway-url").value.trim();
             const agentId = document.getElementById("input-agent-id").value.trim();
+            const gemini_api_key = document.getElementById("input-gemini-key").value.trim();
             
             if (dev_gateway) {
                 if (!dev_pat) {
@@ -1921,7 +1959,7 @@
                 const res = await fetch("/api/sandbox/settings", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ dev_gateway, dev_pat, dev_gateway_url })
+                    body: JSON.stringify({ dev_gateway, dev_pat, dev_gateway_url, gemini_api_key })
                 });
                 
                 if (res.ok) {
