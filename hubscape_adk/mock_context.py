@@ -124,6 +124,16 @@ class HubscapeContext:
                 return {"error": f"Widget template {filename} not found in widgets/ folder."}
             with open(template_path, "r") as f:
                 widget_config = json.load(f)
+
+            # Dynamically replace {{agent_id}} placeholder with the actual running agent_id
+            try:
+                agent_id = self.auth.agent_id or "unknown"
+                config_str = json.dumps(widget_config)
+                config_str = config_str.replace("{{agent_id}}", agent_id)
+                widget_config = json.loads(config_str)
+            except Exception as e:
+                logger.error(f"Failed to perform placeholder replacement in mock widget config: {str(e)}")
+
             self._widget_payload = {
                 "widgetId": widget_template_id,
                 "widgetConfig": widget_config,
