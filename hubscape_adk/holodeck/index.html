@@ -296,6 +296,7 @@
             border-top: 1px solid var(--border-color);
             background: rgba(8, 12, 20, 0.6);
             display: flex;
+            flex-direction: column;
             gap: 12px;
         }
 
@@ -1016,8 +1017,14 @@
                 </div>
             </div>
             <div class="chat-input-area">
-                <input type="text" class="chat-input" id="chat-input" placeholder="Type prompt to trigger logic..." onkeydown="if(event.key === 'Enter') postMessage()">
-                <button class="send-btn" onclick="postMessage()">Send</button>
+                <div class="host-toggle-wrapper" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--text-muted);">
+                    <input type="checkbox" id="host-emulation-toggle" style="cursor: pointer; margin: 0;" onchange="toggleHostEmulation()">
+                    <label for="host-emulation-toggle" style="cursor: pointer; user-select: none;">Host Emulation Mode (Chat with platform Host AI)</label>
+                </div>
+                <div style="display: flex; gap: 12px; width: 100%;">
+                    <input type="text" class="chat-input" id="chat-input" placeholder="Type prompt to trigger logic..." onkeydown="if(event.key === 'Enter') postMessage()">
+                    <button class="send-btn" onclick="postMessage()">Send</button>
+                </div>
             </div>
         </div>
 
@@ -1996,6 +2003,22 @@
             }
         }
 
+        function toggleHostEmulation() {
+            const isHost = document.getElementById("host-emulation-toggle").checked;
+            chatHistory = [];
+            
+            const container = document.getElementById("chat-messages");
+            container.innerHTML = "";
+            
+            if (isHost) {
+                appendBubble("📡 Host Emulation Mode Active.\n\nYou are now chatting with the platform Host AI. The Host AI will evaluate your requests and consult the local agent if they match the agent's description.", "model");
+                log("Host Emulation Mode Enabled. Cleared chat history.", "info");
+            } else {
+                appendBubble("👋 Welcome, Captain. I am running the offline ADK Holodeck.\n\nYou can chat with the agent directly here.", "model");
+                log("Direct Agent Chat Enabled. Cleared chat history.", "info");
+            }
+        }
+
         async function postMessage() {
             const input = document.getElementById("chat-input");
             const query = input.value.trim();
@@ -2006,11 +2029,17 @@
             
             log(`Prompt Sent: "${query}"`, "info");
 
+            const isHost = document.getElementById("host-emulation-toggle")?.checked || false;
+
             try {
                 const response = await fetch("/api/chat", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: query, history: chatHistory })
+                    body: JSON.stringify({ 
+                        message: query, 
+                        history: chatHistory,
+                        host_emulation: isHost 
+                    })
                 });
 
                 const data = await response.json();
