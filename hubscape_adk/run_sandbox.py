@@ -76,7 +76,8 @@ app.state.settings = {
     "dev_gateway": os.getenv("HUBSCAPE_DEV_GATEWAY") == "true",
     "dev_pat": os.getenv("HUBSCAPE_DEV_PAT", ""),
     "dev_gateway_url": os.getenv("HUBSCAPE_DEV_GATEWAY_URL", "https://hubscape-b9558.web.app"),
-    "dev_gateway_connected": False
+    "dev_gateway_connected": False,
+    "gemini_api_key": os.getenv("GEMINI_API_KEY", "")
 }
 
 # Globals for the loaded agent
@@ -169,23 +170,80 @@ class TriggerToolRequest(BaseModel):
 # Mock LLM fallback when API key is missing
 def mock_llm_response(message: str) -> Dict[str, Any]:
     msg_lower = message.lower()
-    if "list" in msg_lower or "show" in msg_lower or "tasks" in msg_lower:
+    
+    # Check what tools are declared in the agent config
+    tools = AGENT_CONFIG.get("tools", [])
+    matched_tool = None
+    
+    # Simple keyword matching against tool name and description
+    for tool in tools:
+        tool_name = tool.get("name", "")
+        if not tool_name:
+            continue
+        
+        # Check if clean tool name is in message
+        clean_tool_name = tool_name.replace("_", " ").lower()
+        if clean_tool_name in msg_lower or tool_name.lower() in msg_lower:
+            matched_tool = tool_name
+            break
+            
+        # Check description keywords
+        desc = tool.get("description", "").lower()
+        words = [w.strip("?,.!") for w in msg_lower.split() if len(w) > 3]
+        if any(word in desc for word in words):
+            matched_tool = tool_name
+            break
+
+    if matched_tool:
+        tool_def = next((t for t in tools if t.get("name") == matched_tool), {})
+        parameters = tool_def.get("parameters", {}).get("properties", {})
+        
+        args = {}
+        for param_name, param_info in parameters.items():
+            param_type = param_info.get("type", "string").lower()
+            if param_type == "string":
+                args[param_name] = f"Mock {param_name}"
+            elif param_type in ("integer", "number"):
+                args[param_name] = 123
+            elif param_type == "boolean":
+                args[param_name] = True
+            elif param_type == "array":
+                args[param_name] = []
+            elif param_type == "object":
+                args[param_name] = {}
+        
         return {
             "type": "tool_call",
-            "name": "list_tasks",
-            "args": {}
+            "name": matched_tool,
+            "args": args
         }
-    elif "add" in msg_lower or "create" in msg_lower or "new" in msg_lower:
-        title = message.replace("add", "").replace("task", "").replace("create", "").strip(" :.,'\"")
-        priority = "high" if "high" in msg_lower else "low" if "low" in msg_lower else "medium"
-        return {
-            "type": "tool_call",
-            "name": "add_task",
-            "args": {"title": title or "New Sandbox Task", "priority": priority}
-        }
+        
+    # No tool matched. Build a clean, generic response.
+    tool_names = [t.get("name") for t in tools if t.get("name")]
+    if tool_names:
+        tools_list_str = ", ".join(f"'{name}'" for name in tool_names)
+        text = (
+            f"🤖 [Sandbox Holodeck Mode]: I heard you say: '{message}'.\n\n"
+            f"Since no `GEMINI_API_KEY` is set, I am running in Offline Mock mode. "
+            f"I couldn't match your input to any of your declared tools: {tools_list_str}.\n\n"
+            f"💡 **Tips:**\n"
+            f"- Set a `GEMINI_API_KEY` environment variable in your `.env` to test true AI chat orchestration.\n"
+            f"- Try saying something containing the name or keywords of your tool.\n"
+            f"- Click the quick simulation commands in the welcome screen to test your handlers."
+        )
+    else:
+        text = (
+            f"🤖 [Sandbox Holodeck Mode]: I heard you say: '{message}'.\n\n"
+            f"Since no `GEMINI_API_KEY` is set, I am running in Offline Mock mode. "
+            f"Currently, no tools are declared in your `config.json`.\n\n"
+            f"💡 **Tips:**\n"
+            f"- Set a `GEMINI_API_KEY` environment variable in your `.env` to test true AI chat orchestration.\n"
+            f"- Add tool definitions in your `config.json` and implement their handlers in `logic.py`."
+        )
+        
     return {
         "type": "text",
-        "text": f"🤖 [Sandbox Holodeck Mode]: I heard you say: '{message}'. Set a GEMINI_API_KEY environment variable to test true AI chat orchestration! Or use the Right Panel to execute specific tools."
+        "text": text
     }
 
 # Execute Local Tool Logic
@@ -208,7 +266,7 @@ async def run_tool(name: str, args: dict, context: HubscapeContext) -> dict:
 # Chat API Router
 @app.post("/api/chat")
 async def chat(payload: ChatMessage, context: HubscapeContext = Depends(get_adk_context)):
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = app.state.settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")
     user_msg = payload.message
     agent_id = AGENT_CONFIG.get("id", "todo_agent")
     
@@ -679,6 +737,7 @@ async def update_settings(req_body: dict):
     dev_gateway = req_body.get("dev_gateway", False)
     dev_pat = req_body.get("dev_pat", "")
     dev_gateway_url = req_body.get("dev_gateway_url", "https://hubscape-b9558.web.app")
+    gemini_api_key = req_body.get("gemini_api_key", "")
 
     # If live mode is selected, verify the developer token with the platform gateway
     if dev_gateway:
@@ -725,14 +784,16 @@ async def update_settings(req_body: dict):
     app.state.settings.update({
         "dev_gateway": dev_gateway,
         "dev_pat": dev_pat,
-        "dev_gateway_url": dev_gateway_url
+        "dev_gateway_url": dev_gateway_url,
+        "gemini_api_key": gemini_api_key
     })
 
     # Persist back to .env file
     update_dotenv({
         "HUBSCAPE_DEV_GATEWAY": "true" if dev_gateway else "false",
         "HUBSCAPE_DEV_PAT": dev_pat,
-        "HUBSCAPE_DEV_GATEWAY_URL": dev_gateway_url
+        "HUBSCAPE_DEV_GATEWAY_URL": dev_gateway_url,
+        "GEMINI_API_KEY": gemini_api_key
     })
 
     return {"status": "success", "settings": app.state.settings}
