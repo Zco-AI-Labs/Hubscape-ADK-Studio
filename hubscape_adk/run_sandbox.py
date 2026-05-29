@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
-GITHUB_BRANCH = "feat/v1-updates"
+GITHUB_BRANCH = "main"
 
 # Read version dynamically from version.txt inside package directory
 VERSION_PATH = os.path.join(PACKAGE_DIR, "version.txt")
@@ -534,36 +534,92 @@ async def update_config(payload: ConfigUpdate):
 
 @app.get("/api/sandbox/update-check")
 async def check_updates():
-    url = f"https://raw.githubusercontent.com/Zco-AI-Labs/Hubscape-ADK-Studio/{GITHUB_BRANCH}/version.txt"
     try:
-        import requests
-        logger.info(f"📡 Checking for ADK updates from: {url}...")
-        response = requests.get(url, timeout=2.0)
-        if response.status_code == 200:
-            remote_ver_str = response.text.strip()
-            
-            # Helper to parse version string safely to tuple of integers
-            def parse_version(v_str):
-                return tuple(int(x) for x in v_str.split("."))
-            
+        import asyncio
+        import re
+        
+        logger.info("📡 Checking for ADK updates from remote repository tags...")
+        
+        # Run git ls-remote asynchronously with terminal prompt disabled to avoid hanging
+        cmd = ["git", "ls-remote", "--tags", "https://github.com/Zco-AI-Labs/Hubscape-ADK-Studio.git"]
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env
+        )
+        
+        try:
+            # Wait with a timeout
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=4.0)
+        except asyncio.TimeoutError:
             try:
-                local_ver = parse_version(__version__)
-                remote_ver = parse_version(remote_ver_str)
-                if remote_ver > local_ver:
-                    logger.info(f"🚀 New ADK Studio version found: {remote_ver_str} (Local: {__version__})")
-                    return {
-                        "update_available": True,
-                        "local_version": __version__,
-                        "remote_version": remote_ver_str,
-                        "command": f"pip install --upgrade git+https://github.com/Zco-AI-Labs/Hubscape-ADK-Studio.git@{GITHUB_BRANCH}"
-                    }
-            except Exception as parse_err:
-                logger.error(f"Error parsing version string: {parse_err}")
+                proc.kill()
+            except Exception:
+                pass
+            logger.warning("⚠️ git ls-remote timed out while checking for updates.")
+            return {
+                "update_available": False,
+                "local_version": __version__,
+                "remote_version": __version__
+            }
+            
+        if proc.returncode != 0:
+            err_msg = stderr.decode().strip()
+            logger.warning(f"⚠️ git ls-remote failed (code {proc.returncode}): {err_msg}")
+            return {
+                "update_available": False,
+                "local_version": __version__,
+                "remote_version": __version__
+            }
+            
+        stdout_str = stdout.decode()
+        versions = []
+        for line in stdout_str.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) < 2:
+                continue
+            ref = parts[1]
+            # Match refs/tags/vX.Y.Z or refs/tags/X.Y.Z
+            match = re.match(r"^refs/tags/v?(\d+\.\d+\.\d+)(?:\^{})?$", ref)
+            if match:
+                ver_str = match.group(1)
+                versions.append(ver_str)
                 
+        if not versions:
+            logger.warning("⚠️ No valid version tags found on remote repository.")
+            return {
+                "update_available": False,
+                "local_version": __version__,
+                "remote_version": __version__
+            }
+            
+        def parse_version(v_str):
+            try:
+                return tuple(int(x) for x in v_str.split("."))
+            except Exception:
+                return (0, 0, 0)
+                
+        latest_ver_str = max(versions, key=parse_version)
+        local_ver = parse_version(__version__)
+        remote_ver = parse_version(latest_ver_str)
+        
+        if remote_ver > local_ver:
+            logger.info(f"🚀 New ADK Studio version found: {latest_ver_str} (Local: {__version__})")
+            return {
+                "update_available": True,
+                "local_version": __version__,
+                "remote_version": latest_ver_str,
+                "command": "hubscape-adk -u"
+            }
+            
         return {
             "update_available": False,
             "local_version": __version__,
-            "remote_version": __version__
+            "remote_version": latest_ver_str
         }
     except Exception as e:
         logger.warning(f"⚠️ Gracefully skipped update check: {e}")
