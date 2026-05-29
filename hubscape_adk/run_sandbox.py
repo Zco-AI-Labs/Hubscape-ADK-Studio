@@ -20,6 +20,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope) -> Any:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 GITHUB_BRANCH = "feat/v1-updates"
 
@@ -126,6 +134,13 @@ def setup_agent():
         if agent_api and hasattr(agent_api, "router"):
             app.include_router(agent_api.router, prefix=f"/api/plugins/{agent_id}")
             logger.info(f"🔌 Mounted custom API router at: /api/plugins/{agent_id}/")
+
+    # Mount static files if present
+    if os.path.exists("static"):
+        static_files_app = NoCacheStaticFiles(directory="static")
+        app.mount(f"/api/plugins/{agent_id}/static", static_files_app, name="agent_plugins_static")
+        app.mount(f"/api/agents/{agent_id}/static", static_files_app, name="agent_agents_static")
+        logger.info(f"📁 Mounted agent static assets at: /api/plugins/{agent_id}/static/ and /api/agents/{agent_id}/static/")
 
     # Verify token at startup if live mode is active
     if app.state.settings["dev_gateway"] and app.state.settings["dev_pat"]:
