@@ -431,9 +431,9 @@ async def chat(payload: ChatMessage, context: HubscapeContext = Depends(get_adk_
             part_content = h.get("content", "")
             if part_content.startswith("[Tool calls"):
                 continue
-            contents.append(types.Content(role=role, parts=[types.Part.from_text(part_content)]))
+            contents.append(types.Content(role=role, parts=[types.Part.from_text(text=part_content)]))
         
-        contents.append(types.Content(role="user", parts=[types.Part.from_text(user_msg)]))
+        contents.append(types.Content(role="user", parts=[types.Part.from_text(text=user_msg)]))
         
         steps = [
             {"name": "User Input", "detail": user_msg, "status": "success"},
